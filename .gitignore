@@ -1,0 +1,17 @@
+examples/
+__pycache__/
+*.pyc
+projects/
+*.tmp
+last_project.txt
+logs/
+ui.json
+stretch/ext/signalsmith-linear/
+stretch/ext/signalsmith-stretch/
+vst3host/sdk/base/
+vst3host/sdk/pluginterfaces/
+vst3host/sdk/public.sdk/
+*.so
+badges/*
+!badges/README.md
+shots/

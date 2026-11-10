@@ -1,0 +1,3 @@
+# Lets Monolith use the Akai MPC Studio (mk1) without running as root.
+# Install:  sudo cp tools/99-mpc-studio.rules /etc/udev/rules.d/ && sudo udevadm control --reload && sudo udevadm trigger
+SUBSYSTEM=="usb", ATTR{idVendor}=="09e8", ATTR{idProduct}=="0013", MODE="0666"
