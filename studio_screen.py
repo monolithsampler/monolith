@@ -240,7 +240,7 @@ def monolith_frame(e, c):
     text(a, W - 2 - tw(right), 5, right, 1, 255)
     state = "REC" if e.rec != "off" else ("PLAY" if e.playing else "STOP")
     text(a, W - 2 - tw(right) - tw(state) - 8, 5, state, 1, 255 if e.playing or e.rec != "off" else 170)
-    a[20, :] = 85
+    a[20, :] = 170
     now = time.time()
     msg = e.msg if (e.msg and now - e.msg_time < 2.5 and getattr(e, "msg_level", "info") in ("info", "warn")) else ""
     line = msg.upper() if msg else f"SEQ {e.cur_seq + 1:02d} {sq.name.upper()}  TRK {e.track.n + 1:02d} {e.track.name.upper()}"
@@ -258,40 +258,40 @@ def monolith_frame(e, c):
         st = f"{state} {bar:03d}.{beat}"
         text(a, W - 2 - tw(st), 5, st, 1, 255 if e.playing or e.rec != "off" else 170)
         if msg: text(a, 60, 5, msg.upper()[:int((W - 70 - tw(st)) / 6)], 1, 255)
-        a[20, :] = 85
+        a[20, :] = 170
         grid = [[("seq", 2, 236), ("bars", 242, 116)], [("trk", 2, 170), ("pgm", 176, 182)],
                 [("swing", 2, 110), ("q", 116, 96), ("bpm", 242, 116)]]
         for ri, row in enumerate(grid):
             y = 24 + ri * 15
             for key, x, w in row:
                 lb, t = c.MAIN_LABELS[key], c.main_value(key)
-                text(a, x, y, lb, 1, 120)
-                vx = x + tw(lb) + 4
+                text(a, x, y, lb + ":", 1, 255)
+                vx = x + tw(lb + ":") + 5
                 t = t[:max(1, (x + w - vx) // 6)]
                 if key == c.main_field:
                     a[y - 2:y + 9, max(0, vx - 2):min(W, vx + tw(t) + 2)] = 255; text(a, vx, y, t, 1, 0)
                 else: text(a, vx, y, t, 1, 255)
-        a[69, :] = 85
+        a[69, :] = 170
         try: q = c.qlinks()
         except Exception: q = []
         shown = {"TEMPO", "SWING", "BPM"}
         for i, (label, get, _, fmt) in enumerate(q[:4]):
             x0 = i * 90
-            if i: a[71:96, x0] = 85
+            if i: a[71:96, x0] = 170
             if label == "-": continue
             text(a, x0 + 4, 73, f"Q{i + 1} " + label.upper()[:10], 1, 170)
-            if label.upper() in shown: text(a, x0 + 4, 85, "^ ABOVE", 1, 120); continue
+            if label.upper() in shown: text(a, x0 + 4, 85, "SEE ABOVE", 1, 170); continue
             try: val = str(fmt())
             except Exception: val = ""
             text(a, x0 + 4, 85, val[:14], 1, 255)
         return Image.fromarray(a)
     text(a, 2, 25, line[:59], 1, 255)
-    a[37, :] = 85
+    a[37, :] = 170
     try: q = c.qlinks()
     except Exception: q = []
     for i, (label, get, _, fmt) in enumerate(q[:4]):
         x0 = i * 90
-        if i: a[40:96, x0] = 85
+        if i: a[40:96, x0] = 170
         if label == "-": continue
         text(a, x0 + 4, 42, label.upper()[:14], 1, 170)
         try: val = str(fmt())
@@ -301,7 +301,7 @@ def monolith_frame(e, c):
         try: f = min(1.0, max(0.0, float(get())))
         except Exception: f = 0.0
         a[90:93, x0 + 4:x0 + 4 + int(80 * f)] = 255                  # how far the knob is turned
-        a[92, x0 + 4:x0 + 84] = np.maximum(a[92, x0 + 4:x0 + 84], 85)
+        a[92, x0 + 4:x0 + 84] = np.maximum(a[92, x0 + 4:x0 + 84], 170)
     return Image.fromarray(a)
 
 
