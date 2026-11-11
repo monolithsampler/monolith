@@ -21,8 +21,11 @@ The first public release of Monolith, a sampler OS for the Raspberry Pi 5.
 
 ## Known limits
 - Tested on one Pi 5 with one MPC Studio. Other setups haven't been tried yet.
-- Takes are mono.
-- There is no sustain or release amp envelope yet.
+- Samples are mono: stereo files and recordings are mixed down to one channel.
+- 8 programs and 16 sequences per project; one sample per pad (no layers).
+- Pads have no sends of their own; sends and EQ are per program.
+- The amp envelope has attack and decay only (no sustain or release).
+- Timing resolution is 96 ticks per beat.
 - MPC import replaces the current project rather than merging into it.
 - The 3D-printed enclosure hasn't been printed or built yet.
 - Machine badges aren't included (see `badges/README.md`).

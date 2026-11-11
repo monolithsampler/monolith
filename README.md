@@ -401,6 +401,11 @@ controller (e.g. an Akai MPK249) are enough. Run `python3 sampler_os.py --no-ard
   the wheel sets velocity (SHIFT: length), SHIFT + < > nudges. The toolbar holds ALL (select every note), the bin, SNAP,
   ZOOM, ROWS (8 / 16) and the bottom LANE. Each pad's row has M (mute) and S (solo), and the header says which program
   the track plays.
+- **How it fits together (as on an MPC):** a sequence has 16 tracks; each track plays one program; a program holds the
+  pads and their samples. MIXER's main view is PROGRAMS: one channel per program (P1-P8, unused ones dim) with EQ,
+  inserts and sends A / B to the two effect returns; selecting a channel says which tracks play it. F4 PADS mixes the
+  pads of the current program; F4 again shows TRACKS (level, pan, mute, solo of each track of the sequence).
+  PROG is one set of pages for the selected pad: PAD, SAMPLE, ENV / FILTER, EFFECTS.
 - **Into the beat:** NEW PROGRAM puts the new program on the current track if it is empty, otherwise on the first empty
   track of the sequence, and selects it: press REC and play the pads. Every track plays its own program: MAIN shows it as
   a PGM chip on each track row (P01, P02 ...); tap the chip for the next program that has sounds.

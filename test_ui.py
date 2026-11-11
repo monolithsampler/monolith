@@ -257,13 +257,10 @@ c.set_prog_tab(2); r.frame(); ok("PROG: the ENVELOPES tab puts attack, decay, cu
 c.prog_row = 22; c.nav("down"); c.nav("down"); ok("PROG: the D-pad runs off the end of a tab into the next one", c.prog_tab == 3 and c.prog_row == 44)
 c.set_prog_tab(1)
 c.touch("down", 500, 176 + 3 * 28 + 10); c.touch("move", 540, 176 + 3 * 28 + 10); c.touch("up", 540, 0); ok("PROG: dragging a parameter changes it", True)
-c.soft(0); ok("PROG: F1 < PANEL goes back to the front panel", c.prog_front)
-r.frame(); tap(506 + 56.25 + 22, 100); ok("PROG panel: the REVERSE switch", e.pad.reverse); r.frame(); tap(506 + 56.25 + 22, 100)
-r.frame(); c.touch("down", 19 + 20, 300); c.touch("move", 19 + 20, 260); c.touch("up", 0, 0)
-ok("PROG panel: the ATTACK fader", e.pad.attack > 0 and c.prog_row == 16); e.pad.attack = 0
-fl0 = e.pad.flt; r.frame(); tap(670, 215); ok("PROG panel: the LP key", e.pad.flt == ("OFF" if fl0 == "LP" else "LP")); e.pad.flt = fl0
-ok("PROG panel: Q-links are tune / level / pan / gain", [q[0] for q in c.qlinks()][1:] == ["Level", "Pan", "Gain"])
-c.soft(0); ok("PROG panel: F1 ALL PARAMS", not c.prog_front); c.soft(0)
+_nv0 = sum(1 for k in range(e.nv) if e.v_pad[k] is not None); c.soft(0)
+ok("PROG: one layout (no separate panel): F1 AUDITION plays the pad", not c.prog_front and c.mode == "PROG")
+ok("PROG: tabs are named for what they hold", [t for t, _ in c.PROG_TABS][:4] == ["GLOBAL", "SAMPLES", "ENVELOPES", "EFFECTS"] and "PICK SAMPLE" in soft_text(c.soft_labels()[3]))
+c.set_prog_tab(0); ok("PROG: PAD tab Q-links are tune / level / pan / gain", [q[0] for q in c.qlinks()][1:] == ["Level", "Pan", "Gain"])
 # CHOP
 c.set_mode("CHOP"); e.cur_track = 4; e.select_pad(0, 0); r.frame(); brk = e.source_by_name("break"); e.pad.assign(brk); e.clear_markers(brk)
 r.frame(); tap(540, 294); ok("CHOP: DETECT TRANSIENT", c.chop_mode == 1)
@@ -1838,7 +1835,7 @@ ok("PROG: left / right = the next tab (pads choose the pad)", cu2.prog_tab == 1 
 cu2.set_mode("SAMPLE"); eu2.select_pad(0, 5); cu2.nav("up"); _u = eu2.sel; cu2.nav("left"); _l = eu2.sel
 ok("SAMPLE: arrows walk the 4 x 4 pads as on MAIN (up = +4, left = -1)", _u == 9 and _l == 8)
 cu2.set_mode("MAIN"); eu2.select_pad(0, 2); _nv = sum(1 for k in range(eu2.nv) if eu2.v_pad[k] is not None); cu2.ok()
-ok("MAIN: OK opens the selected pad in PROG (and plays nothing)", cu2.mode == "PROG" and cu2.prog_front and
+ok("MAIN: OK opens the selected pad in PROG (and plays nothing)", cu2.mode == "PROG" and not cu2.prog_front and
    sum(1 for k in range(eu2.nv) if eu2.v_pad[k] is not None) == _nv)
 cu2.set_mode("MAIN"); ok("MAIN: F4 is MENU (SAVE lives in MENU and on SHIFT + PLAY)", cu2.soft_labels()[3] == ("P", "MENU"))
 cu2.soft(3); ok("MAIN: F4 opens MENU", cu2.mode == "MENU")
@@ -1868,7 +1865,7 @@ import studio as _stu
 _sx = _stu.Studio(cu2)
 _sx.button("F5", True); ok("Studio: F5 = MENU", cu2.mode == "MENU")
 _sx.button("F6", True); ok("Studio: F6 = BACK", cu2.mode != "MENU")
-_sx.button("PROG", True); ok("Studio: PROG = the program (PROG front panel)", cu2.mode == "PROG" and cu2.prog_front)
+_sx.button("PROG", True); ok("Studio: PROG = the program's pages", cu2.mode == "PROG" and not cu2.prog_front)
 _sx.button("SAMPLE", True); ok("Studio: SAMPLE = the sample list", cu2.mode == "PROG" and cu2.picking)
 _sx.button("SAMPLE EDIT", True); ok("Studio: SAMPLE EDIT = CHOP", cu2.mode == "CHOP")
 _sx.button("SHIFT", True); _sx.button("SAMPLE EDIT", True); _sx.button("SHIFT", False); ok("Studio: SHIFT + SAMPLE EDIT = SAMPLE RECORD", cu2.mode == "SAMPLE")
@@ -1966,3 +1963,10 @@ ok("Studio Q-link: turning up past half way keeps going up, gradually", _mv == [
 ok("Studio Q-link: at the knob's end it keeps stepping", [_s.q_steps(0, v) for v in (127, 127)] == [37, 1])
 _s = _st.Studio.__new__(_st.Studio); _s.q_prev = [None] * 4; _s.q_abs = False; _s.q_rel = False; _s.q_rep = [0] * 4
 ok("Studio Q-link: a knob that sends steps (1 / 127) is read as steps", [_s.q_steps(0, v) for v in (1, 1, 1, 1, 127)][-2:] == [1, -1])
+
+# --- MIXER: views named for what they hold; PADS again = the TRACKS of this sequence
+c.set_mode("MIXER"); c.mix_set_view("CHANNELS")
+ok("MIXER: F1 is PROGRAMS (a channel is a program)", soft_text(c.soft_labels()[0]) == "PROGRAMS")
+c.soft(3); ok("MIXER: F4 PADS", c.mix_view == "PADS" and c.mix_page == 0)
+c.soft(3); ok("MIXER: F4 again = TRACKS", c.mix_page == 1 and soft_text(c.soft_labels()[3]) == "TRACKS"); c.soft(3)
+c.mix_set_view("CHANNELS"); c.mix_select(0); ok("MIXER: selecting a program's channel says which tracks play it", "PGM 01" in (c.e.msg or ""))

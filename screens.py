@@ -1835,11 +1835,13 @@ class Renderer:
         if c.prog_row not in c.PROG_TABS[c.prog_tab][1]: c.prog_tab = c.prog_tab_of(c.prog_row)
         tabs_ = c.PROG_TABS
         SHORT = {"ENVELOPES": "ENVELOPE", "MODULATION": "MOD"}
+        SHOWN = {"GLOBAL": "PAD", "SAMPLES": "SAMPLE", "ENVELOPES": "ENV / FILTER"}       # what each page holds
         self.well((x0, 73, 792, 99), 6, (22, 24, 28), 5)                # GLOBAL / SAMPLES / ENVELOPES / (LFO / MODULATION) / EFFECTS
         sw_ = (792 - x0 - 6 - 3 * (len(tabs_) - 1)) / float(len(tabs_))
         for k, (tname, rows_) in enumerate(tabs_):
             bx = x0 + 3 + k * (sw_ + 3)
-            lab_ = SHORT.get(tname, tname) if len(tabs_) > 4 else tname
+            lab_ = SHORT.get(tname, SHOWN.get(tname, tname)) if len(tabs_) > 4 else SHOWN.get(tname, tname)
+            if len(tabs_) > 4 and tname in ("GLOBAL", "SAMPLES"): lab_ = SHOWN[tname]
             on_ = k == c.prog_tab
             self.keycap((bx, 76, bx + sw_, 96), "down" if on_ else "up", 4.5)
             if on_: self.ledp(bx + 9, 86, 3.4, True)
@@ -1891,7 +1893,10 @@ class Renderer:
         self.t(10, 52, "TRACK MIXER" if tracks else "PAD MIXER", 15, True, (240, 242, 246), "lm")
         if not tracks:
             tx = 10 + d.textlength("PAD MIXER", font=font(15, True)) + 12
-            self.lab(tx, 53, f"{e.prog.name.upper()[:14]}   BANK {BANKS[e.bank]}", 6.6, ORANGE, "lm", "s", 0.14)
+            self.lab(tx, 53, f"OF PGM {e.track.prog + 1:02d} {e.prog.name.upper()[:12]}   BANK {BANKS[e.bank]}", 6.6, ORANGE, "lm", "s", 0.14)
+        else:
+            tx = 10 + d.textlength("TRACK MIXER", font=font(15, True)) + 12
+            self.lab(tx, 53, f"SEQUENCE {e.cur_seq + 1:02d} {e.seq.name.upper()[:14]}", 6.6, ORANGE, "lm", "s", 0.14)
         self.well((596, 38, 794, 68), 7, (22, 24, 28), 5)
         for k_, (lab_, on_) in enumerate((("PADS", not tracks), ("TRACKS", tracks))):
             bx = 599 + k_ * 98
@@ -2118,7 +2123,13 @@ class Renderer:
         ink = (240, 236, 224) if sel else (210, 206, 194)
         d.rounded_rectangle([x + 3, 85.5, x + w - 3, 95.5], 2, fill=(38, 39, 43) if not sel else mix((38, 39, 43), ORANGE, 0.25),
                             outline=ORANGE if sel else None, width=1)
-        self.lab(x + w / 2, 90.5, label.upper()[:12], 5.6, ink, "mm", "b", 0.06, floor=5.6)
+        if kind == "prog" and k < len(e.programs):                     # a program's channel: its number, its name; unused ones dim
+            pr_ = e.programs[k]
+            used = any(not p_.empty for p_ in pr_.pads)
+            if not used and not sel: ink = (110, 108, 102)
+            self.lab(x + 5, 90.5, f"P{k + 1}", 4.8, ORANGE if used else (120, 96, 60), "lm", "b", 0.0, floor=4.4)
+            self.lab(x + w / 2 + 6, 90.5, (label.upper() if used else "EMPTY")[:10], 5.0, ink, "mm", "b", 0.04, floor=4.2, maxw=w - 22)
+        else: self.lab(x + w / 2, 90.5, label.upper()[:12], 5.6, ink, "mm", "b", 0.06, floor=5.6)
         self.hit((x, 84, x + w, 97), down=lambda *_: sel_fn())
         # inserts
         if kind == "prog":

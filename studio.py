@@ -220,8 +220,7 @@ class Studio:
         if c.shift and name in SHIFT_PAGES: c.set_mode(SHIFT_PAGES[name]); return
         if name in PAGES:
             c.set_mode(PAGES[name])
-            if name == "PROG": c.prog_front, c.picking = True, False         # PROG: the program's front panel
-            if name == "PROG EDIT": c.prog_front, c.picking = False, False   # PROG EDIT: all its settings
+            if name in ("PROG", "PROG EDIT"): c.prog_front, c.picking = False, False   # the program's pages (one layout)
             if name == "SAMPLE": c.prog_front = False; c.picking, c.pick_cur = True, (e.pad.src.id if e.pad.src else 0)   # the sample list
             return
         if name.startswith("F") and name[1:].isdigit():

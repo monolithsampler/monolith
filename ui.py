@@ -72,7 +72,7 @@ class Controls:
         self.seq_off, self.seq_bars = 0, 4
         self.mute_solo = False                                        # MUTE page: taps and pads solo instead of mute
         self.mute_page, self.mute_groups = 0, False                   # MUTE: tracks 1-8 / 9-16; GROUPS: tap a strip's group to change it
-        self.prog_front = True                                        # PROG: the front panel (the artboard) or every parameter (tabs)
+        self.prog_front = False                                       # PROG is one set of tabs (the old separate front panel is retired)
         self.step_res, self.step_accent = 24, False                   # STEP: ticks per step (1/8 48, 1/16 24, 1/32 12); ACCENT: taps at 127
         self.chop_snap, self.chop_fade = True, True                   # CHOP: markers snap to zero crossings; TO PADS gives slices short fades
         self.chop_src = None                                           # CHOP: its own sample (a take, a loaded file, < >), not the pad's
@@ -1031,13 +1031,17 @@ class Controls:
     def mix_select(self, i):
         ss = self.mix_strips()
         self.mix_strip = clamp(i, 0, len(ss) - 1)
-        if ss[self.mix_strip][0] == "prog":                         # a program strip: that program becomes the track's sound to edit
-            pass
+        if ss[self.mix_strip][0] == "prog":                         # a program's channel: say which tracks play it
+            e = self.e
+            if self.mix_strip < len(e.programs):
+                pr = e.programs[self.mix_strip]
+                trs = [f"{t.n + 1:02d}" for t in e.seq.tracks if t.kind == "drum" and t.prog == self.mix_strip and t.events]
+                e.say(f"PGM {self.mix_strip + 1:02d} {pr.name}: " + ("tracks " + " ".join(trs) if trs else "no track plays it yet"), "info")
         if self.eq_open: self.e.analyse = ss[self.mix_strip][1]
         self.armed = [False] * 4
 
     def mix_set_view(self, v):
-        self.mix_view = v; self.mix_page = 0 if v == "PADS" else 1; self.armed = [False] * 4
+        self.mix_view = v; self.mix_page = 0; self.armed = [False] * 4
         self.mix_strip = clamp(self.mix_strip, 0, len(self.mix_strips()) - 1)
 
     def mix_adjust(self, param, n):
@@ -2343,7 +2347,7 @@ class Controls:
                 vals = [v for _, v in r_.options]; cur = _SET.get(self, r_.key)
                 _SET.put(self, r_.key, vals[((vals.index(cur) if cur in vals else -1) + 1) % len(vals)])
             return
-        if m == "MAIN": self.prog_front = True; self.set_mode("PROG")    # OK opens the selected pad (pads are for playing)
+        if m == "MAIN": self.prog_front = False; self.set_mode("PROG")    # OK opens the selected pad (pads are for playing)
         elif m == "SEQ": self.set_mode("GRID")                         # ALL TRACKS: OK edits the selected track
         elif m == "MUTE": self.mute_tap(e.cur_track)
         elif m == "GRID" and e.track.kind in NOTE_KINDS:
@@ -2416,12 +2420,13 @@ class Controls:
                      (lambda k: f"DELETE {k} NOTES" if k > 1 else "DELETE NOTE")(len([ev for ev in self.g_set if ev in e.track.events]))],
             "STEP": [C("PAGE", f"{self.step_page + 1} OF {self.step_pages()}"), "COPY BAR", "CLEAR PAD", T("ACCENT", self.step_accent)],
             "PROG": ([P("ALL PARAMS"), "AUDITION", P("SAMPLES"), P("EFFECTS")] if self.prog_front and not self.picking else
-                     ["< PANEL", T("NORMALIZE", p.norm), C("RPM", str(p.rpm)) if e.sound_of(p) == "SP-1200" else ("MAKE TRANSWAVE" if e.sound_of(p) == "ASR-10" else T("LO-FI", p.lofi_on)), P("SAMPLES")]),
+                     ["AUDITION", T("NORMALIZE", p.norm), C("RPM", str(p.rpm)) if e.sound_of(p) == "SP-1200" else ("MAKE TRANSWAVE" if e.sound_of(p) == "ASR-10" else T("LO-FI", p.lofi_on)), P("PICK SAMPLE")]),
             "SAMPLE": [T("ARM", e.rec_state in ("rec", "armed")), "STOP", "KEEP" if e.last_take else "", "DISCARD" if e.last_take else ""],
             "CHOP": ["AUDITION", "SPLIT", "MERGE", HOT("CONVERT")],
             "MIXER": (["CLOSE", "BAND <", "BAND >", "FLAT"] if self.eq_open else
-                      [T("CHANNELS", self.mix_view == "CHANNELS"), T("SENDS " + "AB"[self.mix_send], self.mix_view == "SENDS"),
-                       T("GROUPS", self.mix_view == "GROUPS"), T("PADS", self.mix_view == "PADS")]),
+                      [T("PROGRAMS", self.mix_view == "CHANNELS"), T("SENDS " + "AB"[self.mix_send], self.mix_view == "SENDS"),
+                       T("GROUPS", self.mix_view == "GROUPS"),
+                       T("TRACKS" if (self.mix_view == "PADS" and self.mix_page == 1) else "PADS", self.mix_view == "PADS")]),
             "FX": (["CLOSE", T("V1 / V2", True), "", HOT("INSERT")] if self.valve_case else
                    ["CLOSE" if effect is not None else "", T("BYPASS", bool(effect is not None and e.get_bypass(self.fx_tgt()))),
                     "", HOT("LOAD")] if self.fx_browse else
@@ -2537,7 +2542,8 @@ class Controls:
             elif i == 2: self.picking, self.pick_cur = True, (e.pad.src.id if e.pad.src else 0)
             else: self.prog_adjust(44, 1)                                 # EFFECTS: the FX page, on this pad
         elif m == "PROG":
-            if i == 0: self.prog_front = True; self.picking = False
+            if i == 0 and self.picking: self.picking = False
+            elif i == 0: e.trigger(e.pad, 110)
             elif i == 1: self.prog_adjust(9, 1)
             elif i == 2 and e.sound_of(e.pad) == "ASR-10": self.make_transwave()
             elif i == 2: self.prog_adjust(12, 1)
@@ -2563,6 +2569,9 @@ class Controls:
                 elif i == 2: self.eq_band = (self.eq_band + 1) % 5
                 else: self.eq_flat()
             elif i == 1 and self.mix_view == "SENDS": self.mix_send ^= 1           # SENDS again: the other send
+            elif i == 3 and self.mix_view == "PADS":                               # PADS again: the TRACKS of this sequence (and back)
+                self.mix_page ^= 1; self.armed = [False] * 4
+                self.say("TRACKS: level, pan, mute, solo of each track" if self.mix_page else "PADS: this program's pads")
             else: self.mix_set_view(self.MIX_VIEWS[i])
         elif m == "FX":
             tgt = self.fx_tgt()
