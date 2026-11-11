@@ -73,7 +73,8 @@ fi
 echo "ok"
 
 step "Building"
-[ -f stretch/libstretch.so ] && echo "WARP time-stretch: already built" || (cd stretch && sh build.sh)
+# (re)build when the library is missing or will not load here (a copy built on another kind of machine)
+python3 -c "import ctypes; ctypes.CDLL('stretch/libstretch.so')" 2>/dev/null && echo "WARP time-stretch: already built" || (cd stretch && rm -f libstretch.so && sh build.sh)
 sh dsp/build.sh
 if [ $VST = 1 ]; then [ -f vst3host/vst3host.so ] && echo "VST3 host: already built" || (cd vst3host && sh build.sh); fi
 

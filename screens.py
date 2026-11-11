@@ -877,18 +877,20 @@ class Renderer:
         self.t(230, 54, f"T{tr.n + 1:02d} {tr.name}"[:13], 12, True, TRACK_COLORS[tr.n % 8] if (tr.events or not allv) else DIM, "lm")
         self.hit((226, y0 - 2, 352, y1 + 2), down=lambda *_: c.rename_track())
         self.btn((354, y0, 382, y1), ">", lambda: c.step_track(1), 14, grow=3)
-        self.btn((388, y0, 438, y1), self.track_type_label(tr), lambda: c.cycle_track_type(tr.n), 9 if tr.kind != "drum" else 10,
-                 color={"drum": TEXT, "keys": CYAN, "plugin": (200, 140, 255), "midi": YEL}[tr.kind], on=c.track_setup == tr.n)
-        self.btn((446, y0, 470, y1), "-", lambda: e.set_bars(sq.bars - 1), 14, grow=3)
-        self.t(484, 49, str(sq.bars), 13, True, TEXT, "mm"); self.t(484, 62, "bars", 9, False, DIM, "mm")
-        self.btn((498, y0, 522, y1), "+", lambda: e.set_bars(sq.bars + 1), 14, grow=3)
-        self.btn((530, y0, 582, y1), "LOOP" if sq.loop else "1-SHOT", lambda: setattr(sq, "loop", not sq.loop), 10, on=sq.loop)
+        # what the track plays, spelled out (the pads in the rows below are this program's): tap to change it
+        plays = (f"PGM {e.programs[tr.prog].name}" if tr.kind == "drum" else self.track_type_label(tr)).upper()
+        self.keycap((388, y0, 500, y1), "lit" if c.track_setup == tr.n else "up", 5)
+        self.lab(394, 49, "PLAYS", 3.8, (130, 136, 148), "lm", "s", 0.12, floor=3.6)
+        self.lab(394, 59, plays, 5.8, {"drum": TEXT, "keys": CYAN, "plugin": (200, 140, 255), "midi": YEL}[tr.kind], "lm", "s", 0.06,
+                 floor=4.2, maxw=102)
+        self.hit((388, y0 - 2, 500, y1 + 2), down=lambda *_: c.cycle_track_type(tr.n))
+        self.btn((506, y0, 528, y1), "-", lambda: e.set_bars(sq.bars - 1), 14, grow=3)
+        self.t(542, 49, str(sq.bars), 13, True, TEXT, "mm"); self.t(542, 62, "bars", 9, False, DIM, "mm")
+        self.btn((556, y0, 578, y1), "+", lambda: e.set_bars(sq.bars + 1), 14, grow=3)
+        self.btn((584, y0, 632, y1), "LOOP" if sq.loop else "1-SHOT", lambda: setattr(sq, "loop", not sq.loop), 10, on=sq.loop)
         if allv:
-            self.btn((588, y0, 684, y1), f"VIEW {c.seq_bars} BAR" + ("S" if c.seq_bars > 1 else ""),
+            self.btn((638, y0, 686, y1), f"{c.seq_bars} BAR" + ("S" if c.seq_bars > 1 else ""),
                      lambda: setattr(c, "seq_bars", {1: 2, 2: 4, 4: 8, 8: 1}.get(c.seq_bars, 4)), 10)
-        else:
-            self.btn((588, y0, 684, y1), {"OFF": "LANE: OFF", "VEL": "LANE: VEL", "AUTO": "LANE: AUTO"}[c.g_view], c.cycle_lane, 10,
-                     on=c.g_view != "OFF")
         self.btn((690, y0, 792, y1), "ALL TRACKS", lambda: c.set_mode("GRID" if allv else "SEQ"), 11, on=allv)
 
     def screen_seq(self):
@@ -1029,11 +1031,11 @@ class Renderer:
     # ------------------------------------------------------------ GRID bottom lane: OFF / VELOCITY / AUTOMATION
     LANE_H = {"OFF": 0, "VEL": 28, "AUTO": 100}
 
-    GY0 = 72                                                          # GRID view: the ruler's top edge (the header sits above)
+    GY0 = 94                                                          # GRID view: the ruler's top edge (the header sits above)
 
     def grid_h(self):
         """height of the note area: it takes the space the bottom lane does not use"""
-        return 286 - self.LANE_H[self.c.g_view]
+        return 264 - self.LANE_H[self.c.g_view]
 
     def auto_lane(self, gx0, gx1, vy0, vy1, ppt, span, snap):
         """automation of the chosen parameter: a line through its points; drag to draw (snapped to the grid)"""
@@ -1087,6 +1089,8 @@ class Renderer:
         span = c.g_bars * sq.bar_ticks
         ppt = (gx1 - gx0) / float(span)
         self.grid_header()
+        import gridtools
+        gridtools.toolbar(self)
         gy_end = gy0 + 12 + nl * lane_h
         def ly(lane): return gy0 + 12 + (nl - 1 - (lane - base)) * lane_h
         self.plate((2, gy0 - 5, 798, gy_end + 4), 9)
@@ -1104,17 +1108,27 @@ class Renderer:
             pad = e.prog.pads[e.bank * 16 + lane]
             on = lane == c.g_lane
             if on or lane % 2: d.rectangle([gx0 + 1, y, gx1 - 4, y + lane_h - 1], fill=(33, 36, 42) if on else (24, 26, 30))
-            self.keycap((6, y + 1.5, gx0 - 5, y + lane_h - 1.5), "down" if on else "up", 4)
-            lab = pad.src.name.replace("_", " ")[:9] if (pad.src and pad.link is None) else (f"chop {pad.link[1] + 1}" if pad.link else "empty")
+            # the row's pad: its number and what it plays (the sample, or which slice of which sample), M and S
+            self.keycap((6, y + 1.5, 64, y + lane_h - 1.5), "down" if on else "up", 4)
+            if pad.src is None: lab = "empty"
+            elif pad.link is not None: lab = f"{pad.src.name[:5]} {pad.link[1] + 1}".replace("_", " ")
+            else: lab = pad.src.name.replace("_", " ")
             tc = ORANGE if on else ((214, 218, 226) if pad.src else (100, 106, 118))
             if nl == 8:
-                self.lab(12, y + lane_h // 2 - 6, f"{BANKS[e.bank]}{lane + 1:02d}", 6, ORANGE if on else skin.LAB, "lm", "s", 0.1)
-                self.t(12, y + lane_h // 2 + 6, lab, 9.5, True, tc, "lm")
+                self.lab(11, y + lane_h // 2 - 6, f"{BANKS[e.bank]}{lane + 1:02d}", 5.4, ORANGE if on else skin.LAB, "lm", "s", 0.1)
+                self.t(11, y + lane_h // 2 + 6, lab[:8], 9, True, tc, "lm")
             else:
-                self.lab(11, y + lane_h // 2, f"{BANKS[e.bank]}{lane + 1:02d}", 5.4, ORANGE if on else skin.LAB, "lm", "s", 0.06)
-                self.t(34, y + lane_h // 2, lab[:7], 8, True, tc, "lm")
-            self.hit((4, y, gx0 - 2, y + lane_h), down=lambda *_, lane=lane: (setattr(c, "g_lane", lane), setattr(e, "sel", lane),
-                                                                          e.trigger(e.prog.pads[e.bank * 16 + lane], 100)))
+                self.lab(10, y + lane_h // 2, f"{BANKS[e.bank]}{lane + 1:02d}", 4.8, ORANGE if on else skin.LAB, "lm", "s", 0.04)
+                self.t(28, y + lane_h // 2, lab[:6], 7.5, True, tc, "lm")
+            self.hit((4, y, 64, y + lane_h), down=lambda *_, lane=lane: (setattr(c, "g_lane", lane), setattr(e, "sel", lane),
+                                                                     e.trigger(e.prog.pads[e.bank * 16 + lane], 100)))
+            mh = min(lane_h - 4, 14)
+            for k_, (flag, letter, col) in enumerate((("mute", "M", RED), ("solo", "S", YEL))):
+                bx = 66 + k_ * 12
+                st_ = getattr(pad, flag)
+                self.keycap((bx, y + lane_h / 2 - mh / 2, bx + 11, y + lane_h / 2 + mh / 2), "lit" if st_ else "up", 3, col)
+                self.lab(bx + 5.5, y + lane_h / 2, letter, 4.4, (20, 20, 22) if st_ else (160, 166, 178), "mm", "b", 0.0, floor=4.0)
+                self.hit((bx, y, bx + 11.5, y + lane_h), down=lambda *_, lane=lane, flag=flag: c.g_pad_flag(lane, flag))
         # grid lines
         s = c.snap()
         t = (c.g_off // s) * s
@@ -1136,7 +1150,9 @@ class Renderer:
             top = tuple(int(min(255, ch * v * 1.08)) for ch in ORANGE); bot = tuple(int(ch * v * 0.78) for ch in ORANGE)
             sp, ox, oy = skin.body(max(3, self.P(w)), max(3, self.P(lane_h - 6)), self.P(2.5), top, bot, 0.25, 0.25, (4, 0.5))
             self.put(sp, x, y + 3, ox, oy)
-            if ev == c.g_sel: d.rounded_rectangle([x - 1.5, y + 1.5, x + w + 1.5, y + lane_h - 1.5], 3, outline=(255, 255, 255), width=1.2)
+            if gridtools.selected(c, ev):
+                d.rounded_rectangle([x - 1.5, y + 1.5, x + w + 1.5, y + lane_h - 1.5], 3, outline=(255, 255, 255), width=1.6)
+                if w > 8: d.rectangle([x + w - 3, y + 6, x + w - 1.5, y + lane_h - 6], fill=(255, 255, 255))     # the length handle
         # cursor + playhead
         if c.g_off <= c.g_tick < c.g_off + span and base <= c.g_lane < base + nl:
             x = gx0 + (c.g_tick - c.g_off) * ppt
@@ -1161,37 +1177,13 @@ class Renderer:
                 d.rectangle([x, vy1 - h, x + 2, vy1 - 1], fill=ROW_COLORS[(lane // 4) % 4] if lane == c.g_lane else mix(ROW_COLORS[(lane // 4) % 4], BG, 0.5))
         elif c.g_view == "AUTO": self.auto_lane(gx0, gx1, vy0, vy1, ppt, span, s)
         if not tr.events:
-            self.t((gx0 + gx1) // 2, (gy0 + gy_end) // 2, "tap a cell to add a note  -  drag a note to move it", 12, False, DIM, "mm")
-        # touch on the grid
-        state = {}
-        def cell(px, py):
-            tick = int(c.g_off + (px - gx0) / ppt)
-            tick = tick // s * s
-            lane = base + nl - 1 - int((py - (gy0 + 12)) // lane_h)
-            return tick, clamp(lane, base, base + nl - 1)
-        def gdown(px, py):
-            tick, lane = cell(px, py)
-            c.g_tick, c.g_lane = clamp(tick, 0, sq.length - s), lane
-            e.sel = lane
-            raw = c.g_off + (px - gx0) / ppt
-            hit_ev = next((ev for ev in tr.events if ev[1] == e.bank * 16 + lane and ev[0] <= raw < ev[0] + max(ev[3], s)), None)
-            state["ev"] = None
-            if hit_ev:
-                c.g_sel = hit_ev; state["ev"] = hit_ev; state["off"] = tick - hit_ev[0]; e.begin_edit()
-            else:
-                e.begin_edit(); e.add_note(c.g_tick, e.bank * 16 + lane, c.step_vel, s)
-                c.g_sel = e.find_note(c.g_tick, e.bank * 16 + lane)
-                e.trigger(e.prog.pads[e.bank * 16 + lane], c.step_vel)
-        def gdrag(px, py):
-            ev = state.get("ev")
-            if ev is None: return
-            tick, lane = cell(px, py)
-            nt = clamp(tick - state.get("off", 0), 0, sq.length - 1)
-            nl_ = e.bank * 16 + lane
-            if (nt, nl_) != (ev[0], ev[1]):
-                e.remove_note(ev); e.add_note(nt, nl_, ev[2], ev[3])
-                ev2 = e.find_note(nt, nl_); state["ev"] = ev2; c.g_sel = ev2; c.g_tick, c.g_lane = nt, lane
-        self.hit((gx0, gy0 + 12, gx1, gy_end), down=gdown, drag=gdrag)
+            self.t((gx0 + gx1) // 2, (gy0 + gy_end) // 2, "DRAW: tap to add a note, drag right for its length", 12, False, DIM, "mm")
+        # touch on the grid (the tool decides: draw / select / erase)
+        lo, hi = e.bank * 16 + base, e.bank * 16 + base + nl - 1
+        gridtools.install(self, (gx0, gy0 + 12, gx1, gy_end), ppt, s,
+                          lambda py: e.bank * 16 + int(clamp(base + nl - 1 - int((py - (gy0 + 12)) // lane_h), base, base + nl - 1)),
+                          lambda p_: ly(p_ - e.bank * 16), lane_h, lo, hi)
+        gridtools.draw_box(self)
         self.hit((gx0, gy0 - 2, gx1, gy0 + 10), down=lambda px, py: e.locate(c.g_off + (px - gx0) / ppt),
                  drag=lambda px, py: e.locate(c.g_off + (px - gx0) / ppt))
         if c.track_setup is not None: self.track_setup_panel()
@@ -1222,6 +1214,8 @@ class Renderer:
         ppt = (gx1 - gx0) / float(span)
         kp = e.prog.pads[tr.key_pad]
         self.grid_header()
+        import gridtools
+        gridtools.toolbar(self)
         if tr.kind == "keys": what = f"KEYGROUP: {BANKS[tr.key_pad // 16]}{tr.key_pad % 16 + 1:02d} {kp.src.name if kp.src else '(empty pad)'}   {self.note_name(tr.root)} = original pitch"
         elif tr.kind == "plugin": what = f"PLUGIN: {__import__('os').path.basename(tr.plugin).replace('.vst3', '') or '(none chosen)'}"
         else: what = f"MIDI: out on channel {tr.midi_ch or 1}"
@@ -1268,7 +1262,8 @@ class Renderer:
             nt_ = tuple(int(min(255, ch * v * 1.08)) for ch in ORANGE); nb_ = tuple(int(ch * v * 0.78) for ch in ORANGE)
             sp, ox, oy = skin.body(max(3, self.P(w)), max(3, self.P(lane_h - 4)), self.P(2.5), nt_, nb_, 0.25, 0.25, (4, 0.5))
             self.put(sp, x, y + 2, ox, oy)
-            if ev == c.g_sel: d.rounded_rectangle([x - 1.5, y + 0.5, x + w + 1.5, y + lane_h - 1.5], 3, outline=(255, 255, 255), width=1.2)
+            if gridtools.selected(c, ev):
+                d.rounded_rectangle([x - 1.5, y + 0.5, x + w + 1.5, y + lane_h - 1.5], 3, outline=(255, 255, 255), width=1.6)
         above = sum(1 for ev in tr.events if ev[1] > top); below = sum(1 for ev in tr.events if ev[1] <= top - nl)
         if above: self.t(gx1 - 4, gy0 + 16, f"{above} higher", 9, True, YEL, "ra")
         if below: self.t(gx1 - 4, gy_end - 14, f"{below} lower", 9, True, YEL, "ra")
@@ -1294,30 +1289,10 @@ class Renderer:
         if not tr.events:
             self.t((gx0 + gx1) // 2, (gy0 + gy_end) // 2 - 10, "play the keyboard with REC or OVERDUB on - or tap here to draw notes", 12, False, DIM, "mm")
             self.t((gx0 + gx1) // 2, (gy0 + gy_end) // 2 + 12, what[:70], 11, False, CYAN, "mm")
-        state = {}
-        def cell(px, py):
-            tick = int(c.g_off + (px - gx0) / ppt) // s_ * s_
-            note = int(clamp(top - int((py - (gy0 + 12)) // lane_h), top - nl + 1, top))
-            return tick, note
-        def gdown(px, py):
-            tick, note = cell(px, py)
-            c.g_tick, c.g_lane = clamp(tick, 0, sq.length - s_), note
-            raw = c.g_off + (px - gx0) / ppt
-            hit_ev = next((ev for ev in tr.events if ev[1] == note and ev[0] <= raw < ev[0] + max(ev[3], s_)), None)
-            e.begin_edit(); state["ev"] = None
-            if hit_ev: c.g_sel = hit_ev; state["ev"] = hit_ev; state["off"] = tick - hit_ev[0]
-            else:
-                e.add_note(c.g_tick, note, c.step_vel, s_); c.g_sel = e.find_note(c.g_tick, note)
-                e.audition(note, c.step_vel)
-        def gdrag(px, py):
-            ev = state.get("ev")
-            if ev is None: return
-            tick, note = cell(px, py)
-            nt = clamp(tick - state.get("off", 0), 0, sq.length - 1)
-            if (nt, note) != (ev[0], ev[1]):
-                e.remove_note(ev); e.add_note(nt, note, ev[2], ev[3])
-                ev2 = e.find_note(nt, note); state["ev"] = ev2; c.g_sel = ev2; c.g_tick, c.g_lane = nt, note
-        self.hit((gx0, gy0 + 12, gx1, gy_end), down=gdown, drag=gdrag)
+        gridtools.install(self, (gx0, gy0 + 12, gx1, gy_end), ppt, s_,
+                          lambda py: int(clamp(top - int((py - (gy0 + 12)) // lane_h), top - nl + 1, top)),
+                          lambda n_: ly(n_), lane_h, 0, 127)
+        gridtools.draw_box(self)
         self.hit((gx0, gy0 - 2, gx1, gy0 + 10), down=lambda px, py: e.locate(c.g_off + (px - gx0) / ppt),
                  drag=lambda px, py: e.locate(c.g_off + (px - gx0) / ppt))
         if c.track_setup is not None: self.track_setup_panel()

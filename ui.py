@@ -57,6 +57,8 @@ class Controls:
         self.hits, self.drag = [], None
         # per-screen state
         self.g_tick, self.g_lane, self.g_bars, self.g_off, self.g_sel = 0, 0, 2, 0, None
+        self.g_tool, self.g_set, self.g_box = "DRAW", [], None      # GRID: the tool, the selected notes, the marquee being dragged
+        self._g_acc = [0.0, 0.0]                                    # Q-link remainders (nudge, length)
         self.g_lanes = 8                                              # GRID shows 8 big lanes (touch friendly) or all 16
         self.g_view = "OFF"                                           # GRID bottom lane: OFF (notes get the room), VEL or AUTO
         self.g_auto = 0                                               # which automation target the AUTO lane shows
@@ -1230,14 +1232,26 @@ class Controls:
                     lin("Track vol", tr, "vol", 0, 1, lambda v: f"{v * 100:.0f}%"),
                     lin("Track pan", tr, "pan", -1, 1, lambda v: "C" if abs(v) < 0.05 else f"{'L' if v < 0 else 'R'}{abs(v) * 100:.0f}", 2)]
         if m == "GRID":
-            return [lin("Velocity", self, "step_vel", 1, 127, lambda v: str(v), 0),
-                    ("Snap", lambda: e.qgrid / (len(QUANT) - 1.0), lambda f: setattr(e, "qgrid", int(round(f * (len(QUANT) - 1)))),
-                     lambda: QUANT[e.qgrid][0]),
+            # the knobs work on the selected notes (one, or a marquee's worth): NUDGE, LENGTH, VELOCITY; Q4 zooms
+            def rel(slot, per, fn):
+                def set_(f):
+                    self._g_acc[slot] += (f - 0.5) * 127.0 * per
+                    a_ = self._g_acc[slot]
+                    k = int(round(a_)) if abs(a_) >= 0.999 else 0
+                    if k: self._g_acc[slot] -= k; fn(k)
+                return set_
+            sel = self.g_selection()
+            first = sel[0] if sel else None
+            def vel_set(f):
+                cur = self.g_selection()
+                if cur: self.g_velocity(int(round(1 + f * 126)) - cur[0][2])
+                else: self.step_vel = int(round(1 + f * 126))
+            return [("Nudge", lambda: 0.5, rel(0, 1.0, self.g_nudge), lambda: (f"tick {first[0] % sq.beat_ticks}" if first else "-")),
+                    ("Length", lambda: 0.5, rel(1, 2.0, self.g_length), lambda: (f"{first[3]} t" if first else "-")),
+                    ("Velocity", lambda: ((first[2] if first else self.step_vel) - 1) / 126.0, vel_set,
+                     lambda: str(first[2] if first else self.step_vel)),
                     ("Zoom", lambda: [1, 2, 4, 8].index(self.g_bars) / 3.0, lambda f: self.set_zoom([1, 2, 4, 8][int(round(f * 3))]),
-                     lambda: f"{self.g_bars} bar" + ("s" if self.g_bars > 1 else "")),
-                    ("Scroll", lambda: self.g_off / max(1.0, sq.length - self.g_bars * sq.bar_ticks),
-                     lambda f: self._g_scroll_to(f * max(0, sq.length - self.g_bars * sq.bar_ticks)),
-                     lambda: f"bar {self.g_off // sq.bar_ticks + 1}")]
+                     lambda: f"{self.g_bars} bar" + ("s" if self.g_bars > 1 else ""))]
         if m == "STEP":
             evs = self.step_events()
             if evs:                                                      # a note under the cursor: its velocity, nudge, ratchet
@@ -1450,6 +1464,87 @@ class Controls:
     def snap(self):
         g = QUANT[self.e.qgrid][1]
         return g if g else 24
+
+    # ---------- GRID: tools and the selection (DRAW / SELECT / ERASE; nudge, length, velocity, delete work on the selection)
+    def g_pitch(self):
+        """the note / pad under the cursor"""
+        return self.g_lane if self.e.track.kind in NOTE_KINDS else self.e.bank * 16 + self.g_lane
+
+    def g_selection(self):
+        """the selected notes still on the track; none: the single note last touched, or the one under the cursor"""
+        evs = self.e.track.events
+        sel = [ev for ev in self.g_set if ev in evs]
+        if sel: return sel
+        if self.g_sel in evs: return [self.g_sel]
+        ev = self.e.find_note(self.g_tick, self.g_pitch())
+        return [ev] if ev else []
+
+    def g_edit(self, fn, undo=True):
+        """replace each selected note by fn(note) (None deletes it); the selection follows. Returns how many changed."""
+        e = self.e
+        sel = self.g_selection()
+        if not sel: return 0
+        if undo: e.begin_edit()
+        new = []
+        with e.lock:
+            evs = list(e.track.events)
+            for ev in sel:
+                if ev in evs: evs.remove(ev)
+            for ev in sel:
+                nv = fn(ev)
+                if nv is not None: nv = tuple(nv); evs.append(nv); new.append(nv)
+            e.track.events = sorted(evs)
+        multi = len(self.g_set) > 1 or (self.g_set and self.g_set[0] in sel)
+        self.g_set = new if (multi or len(new) > 1) else []
+        self.g_sel = new[0] if new else None
+        return len(sel)
+
+    def g_nudge(self, ticks):
+        n = self.e.seq.length
+        k = self.g_edit(lambda ev: ((ev[0] + ticks) % n,) + tuple(ev[1:]))
+        if k: self.say(f"{k} note{'s' if k > 1 else ''} nudged {ticks:+d} tick{'s' if abs(ticks) != 1 else ''}")
+        else: self.say("no note selected")
+
+    def g_length(self, d):
+        k = self.g_edit(lambda ev: (ev[0], ev[1], ev[2], int(clamp(ev[3] + d, 3, self.e.seq.length))))
+        sel = self.g_selection()
+        if k and sel: self.say(f"length {sel[0][3]} ticks" + (f" ({k} notes)" if k > 1 else ""))
+        elif not k: self.say("no note selected")
+
+    def g_velocity(self, d):
+        k = self.g_edit(lambda ev: (ev[0], ev[1], int(clamp(ev[2] + d, 1, 127)), ev[3]))
+        if not k: self.step_vel = int(clamp(self.step_vel + d, 1, 127))
+
+    def g_delete(self):
+        k = self.g_edit(lambda ev: None)
+        self.g_set, self.g_sel = [], None
+        self.say(f"{k} note{'s' if k != 1 else ''} deleted" if k else "no note selected")
+
+    def g_select_all(self):
+        """every note of the track; with a pad's row lit and SHIFT held: that row only"""
+        evs = self.e.track.events
+        if self.shift: self.shift_used = True; evs = [ev for ev in evs if ev[1] == self.g_pitch()]
+        self.g_set = list(evs); self.g_sel = evs[0] if evs else None
+        self.say(f"{len(evs)} notes selected" if evs else "no notes here")
+
+    def g_set_tool(self, t):
+        self.g_tool = t
+        if t != "SELECT" and len(self.g_set) > 1: pass                 # the selection stays: nudge / delete still work on it
+        self.say({"DRAW": "DRAW: tap to add a note, drag its end for length", "SELECT": "SELECT: drag a box around notes",
+                  "ERASE": "ERASE: tap or drag over notes"}[t])
+
+    def g_snap_step(self, d):
+        self.e.qgrid = int(clamp(self.e.qgrid + d, 1, len(QUANT) - 1))
+
+    def g_zoom_step(self, d):
+        z = [1, 2, 4, 8]
+        self.set_zoom(z[int(clamp(z.index(self.g_bars) + d, 0, 3))])
+
+    def g_pad_flag(self, lane, which):
+        """M / S on a pad's row"""
+        pad = self.e.prog.pads[self.e.bank * 16 + lane]
+        setattr(pad, which, not getattr(pad, which))
+        self.e.pad_changed(pad) if hasattr(self.e, "pad_changed") else None
 
     def set_zoom(self, bars):
         self.g_bars = bars; self._g_scroll_to(self.g_off)
@@ -1862,10 +1957,7 @@ class Controls:
             if d in ("up", "down"): e.cur_track = (e.cur_track + (1 if d == "down" else -1)) % 16
             else: self.seq_off = clamp(self.seq_off + (1 if d == "right" else -1), 0, max(0, sq.bars - 1))
         elif m == "GRID" and self.shift and d in ("left", "right"):      # SHIFT + left / right: nudge the note by one tick
-            pitch = self.g_lane if e.track.kind in NOTE_KINDS else e.bank * 16 + self.g_lane
-            ev = self.g_sel if self.g_sel in e.track.events else e.find_note(self.g_tick, pitch)
-            if ev:
-                self.g_sel = e.nudge(1 if d == "right" else -1, note=ev); self.say(f"note at tick {self.g_sel[0]}")
+            self.g_nudge(1 if d == "right" else -1)
         elif m == "GRID" and e.track.kind in NOTE_KINDS:                 # piano roll: up / down = one semitone
             s = self.snap()
             if d == "left": self.g_tick = max(0, self.g_tick - s)
@@ -1890,6 +1982,7 @@ class Controls:
             elif d == "up": self.g_lane = min(15, self.g_lane + 1)
             else: self.g_lane = max(0, self.g_lane - 1)
             if d in ("up", "down"): self.e.sel = self.g_lane
+            self.g_sel = None                                         # the knobs now work on the note under the cursor (or the box)
             self.g_follow()
         elif m == "STEP":
             if d in ("left", "right"): self.step_cursor = (self.step_cursor + (1 if d == "right" else -1)) % 16
@@ -1977,14 +2070,9 @@ class Controls:
             e.locate(e.pos + acc * (sq.beat_ticks // 4 if self.shift else sq.beat_ticks))
         elif m == "MUTE":
             e.cur_track = (e.cur_track + n) % 16; self.mute_page = e.cur_track // 8
-        elif m == "GRID":
-            ev = e.find_note(self.g_tick, self.g_lane)
-            if ev and self.shift:                     # SHIFT + jog = note length
-                e.begin_edit(); e.remove_note(ev)
-                e.add_note(ev[0], ev[1], ev[2], max(6, ev[3] + n * self.snap()))
-            elif ev:
-                e.remove_note(ev); e.add_note(ev[0], ev[1], clamp(ev[2] + 4 * n, 1, 127), ev[3])
-            else: self.step_vel = clamp(self.step_vel + 4 * n, 1, 127)
+        elif m == "GRID":                             # the wheel: velocity of the selection (SHIFT: its length, a snap step a click)
+            if self.shift: self.shift_used = True; self.g_length(n * self.snap())
+            else: self.g_velocity(4 * n)
         elif m == "STEP":
             evs = self.step_events()
             dv = (1 if self.shift else 4) * acc
@@ -2269,6 +2357,7 @@ class Controls:
             self.midi_learn = None if self.midi_learn == t else t
         elif m == "GRID":
             on = e.toggle_note(self.g_tick, self.g_lane, self.step_vel, self.snap())
+            self.g_sel = e.find_note(self.g_tick, self.g_lane) if on else None
             if on: e.trigger(e.prog.pads[e.bank * 16 + self.g_lane], self.step_vel)
         elif m == "STEP": self.step_toggle(self.step_cursor)
         elif m == "PROG":
@@ -2323,9 +2412,8 @@ class Controls:
             "PROJECTS": ["NEW", "SAVE AS", "OPEN", BACK],
             "EDIT": ["CLOSE", C("OPERATION", self.ED_OPS[self.ed_op]), "UNDO", HOT("DO IT")],
             "MUTE": [C("TRACKS", "1-8" if self.mute_page == 0 else "9-16"), T("GROUPS", self.mute_groups), "UNMUTE ALL", T("ON NEXT BAR", e.mute_quant)],
-            "GRID": [C("ZOOM", f"{self.g_bars} BAR" + ("S" if self.g_bars > 1 else "")),
-                     C("SHOW", ("1 OCTAVE" if self.g_lanes == 8 else "2 OCTAVES") if notes else ("8 PADS" if self.g_lanes == 8 else "16 PADS")),
-                     C("SNAP", QUANT[e.qgrid][0]), "DELETE NOTE"],
+            "GRID": [T("DRAW", self.g_tool == "DRAW"), T("SELECT", self.g_tool == "SELECT"), T("ERASE", self.g_tool == "ERASE"),
+                     (lambda k: f"DELETE {k} NOTES" if k > 1 else "DELETE NOTE")(len([ev for ev in self.g_set if ev in e.track.events]))],
             "STEP": [C("PAGE", f"{self.step_page + 1} OF {self.step_pages()}"), "COPY BAR", "CLEAR PAD", T("ACCENT", self.step_accent)],
             "PROG": ([P("ALL PARAMS"), "AUDITION", P("SAMPLES"), P("EFFECTS")] if self.prog_front and not self.picking else
                      ["< PANEL", T("NORMALIZE", p.norm), C("RPM", str(p.rpm)) if e.sound_of(p) == "SP-1200" else ("MAKE TRANSWAVE" if e.sound_of(p) == "ASR-10" else T("LO-FI", p.lofi_on)), P("SAMPLES")]),
@@ -2436,12 +2524,8 @@ class Controls:
                 e.pending_mute = {}; self.say("all tracks on, solo off")
             else: e.mute_quant = not e.mute_quant; self.say("mutes switch on the next bar line" if e.mute_quant else "mutes switch at once")
         elif m == "GRID":
-            if i == 0: self.set_zoom({1: 2, 2: 4, 4: 8, 8: 1}[self.g_bars])
-            elif i == 1: self.g_lanes = 16 if self.g_lanes == 8 else 8
-            elif i == 2: e.qgrid = (e.qgrid % (len(QUANT) - 1)) + 1
-            else:
-                ev = self.g_sel if self.g_sel in e.track.events else e.find_note(self.g_tick, self.g_lane)
-                if ev: e.begin_edit(); e.remove_note(ev); self.g_sel = None; self.say("note deleted")
+            if i < 3: self.g_set_tool(("DRAW", "SELECT", "ERASE")[i])
+            else: self.g_delete()
         elif m == "STEP":
             if i == 0: self.step_page = (self.step_page + 1) % self.step_pages()
             elif i == 1: self.step_copy_page()
@@ -2558,7 +2642,7 @@ class Controls:
         elif phase == "move" and self.drag:
             self.drag(x, y)
         elif phase == "up":
-            self.drag = None
+            self.drag = None; self.g_box = None
 
     # ---------- pads ----------
     def pad_hit(self, n, vel):

@@ -184,9 +184,9 @@ r.frame(); tap(219, 94 + 2 * 34 + 16); ok("SEQ: S button solos a track", e.seq.t
 ok("SEQ: mute / solo buttons are at least 30 x 24 px (finger-sized)", all((h[0][2] - h[0][0]) >= 30 and (h[0][3] - h[0][1]) >= 24 for h in c.hits if h[0][0] in (170, 204)))
 r.frame(); c.soft(2); r.frame(); ok("ALL TRACKS: F3 pages to tracks 9-16", e.cur_track == 11); c.soft(2); e.cur_track = 3
 e.seq.tracks[2].solo = e.seq.tracks[2].mute = False
-b0 = e.seq.bars; tap(458, 54); ok("GRID header: bars -", e.seq.bars == b0 - 1); tap(510, 54); ok("GRID header: bars +", e.seq.bars == b0); e.set_bars(2)
+b0 = e.seq.bars; tap(517, 54); ok("GRID header: bars -", e.seq.bars == b0 - 1); tap(567, 54); ok("GRID header: bars +", e.seq.bars == b0); e.set_bars(2)
 tap(400, 78); ok("SEQ: tapping the ruler moves the playhead", e.pos > 0)
-tap(556, 54); ok("GRID header: LOOP toggle", e.seq.loop is False); tap(556, 54)
+tap(608, 54); ok("GRID header: LOOP toggle", e.seq.loop is False); tap(608, 54)
 r.frame(); tap(210, 54); ok("GRID header: track < / >", e.cur_track == 2); tap(368, 54); ok("...and >", e.cur_track == 3)
 c.nav("down"); c.nav("down"); ok("SEQ: arrows move through tracks", e.cur_track == 5)
 r.frame(); tap(60, 94 + 5 * 34 + 16); ok("ALL TRACKS: tapping the selected track again opens its grid", c.mode == "GRID" and e.cur_track == 5)
@@ -225,8 +225,9 @@ c.g_tick, c.g_lane = 96, 7; c.ok(); ok("GRID: OK toggles a note at the cursor", 
 c.jog(2); ok("GRID: jog changes the velocity of the note under the cursor", e.find_note(96, 7)[2] == 108)
 c.shift = True; c.jog(1); c.shift = False; ok("GRID: SHIFT+jog changes the note length", e.find_note(96, 7)[3] == 48)
 c.nav("right"); ok("GRID: arrows move the cursor by the snap", c.g_tick == 120)
-c.g_bars = 2; c.soft(0); ok("GRID: F1 steps the zoom (2 -> 4 bars)", c.g_bars == 4)
-c.soft(1); r.frame(); ok("GRID: F2 shows all 16 pads", c.g_lanes == 16); c.soft(1); ok("GRID: F2 again: 8 big lanes", c.g_lanes == 8)
+c.g_bars = 2; c.g_zoom_step(1); ok("GRID: ZOOM + steps the zoom (2 -> 4 bars)", c.g_bars == 4)
+r.frame(); tap(499, 80); r.frame(); ok("GRID: ROWS shows all 16 pads", c.g_lanes == 16); tap(499, 80); ok("GRID: ROWS again: 8 big lanes", c.g_lanes == 8)
+c.soft(1); ok("GRID: F2 = SELECT tool, F1 = DRAW", c.g_tool == "SELECT"); c.soft(0); ok("...F1 back to DRAW", c.g_tool == "DRAW")
 c.g_lane = 12; r.frame(); tap(40, r.GY0 + 12 + LH // 2); ok("GRID: 8-lane view follows the cursor (top lane is pad 16)", c.g_lane == 15)
 c.soft(3); ok("GRID: DELETE removes the note under the cursor", True)
 e.qgrid = 2; ok("GRID: snap follows the quantize setting", c.snap() == 48); e.qgrid = 4

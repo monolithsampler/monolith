@@ -395,6 +395,12 @@ controller (e.g. an Akai MPK249) are enough. Run `python3 sampler_os.py --no-ard
   choices, amber windows for numbers and names. The four Q-link knobs' settings carry a Q1-Q4 tag. SAMPLES is a wave view
   as on an MPC: a ruler over the waveform (bars and beats with WARP on), START / END flags to drag, and the warp controls
   together (WARP, SAMPLE BPM with x2 / /2 / AUTO, STRETCH). With WARP on, Q3 is SAMPLE BPM and Q4 STRETCH.
+- **GRID tools:** DRAW (F1: tap to add a note, drag right for its length, drag a note to move it, drag its end for
+  length), SELECT (F2: drag a box around notes; SHIFT + tap adds or removes one) and ERASE (F3: tap or drag over notes).
+  F4 deletes the selection. The knobs work on the selection: Q1 NUDGE (a tick a click), Q2 LENGTH, Q3 VELOCITY, Q4 ZOOM;
+  the wheel sets velocity (SHIFT: length), SHIFT + < > nudges. The toolbar holds ALL (select every note), the bin, SNAP,
+  ZOOM, ROWS (8 / 16) and the bottom LANE. Each pad's row has M (mute) and S (solo), and the header says which program
+  the track plays.
 - **Into the beat:** NEW PROGRAM puts the new program on the current track if it is empty, otherwise on the first empty
   track of the sequence, and selects it: press REC and play the pads. Every track plays its own program: MAIN shows it as
   a PGM chip on each track row (P01, P02 ...); tap the chip for the next program that has sounds.

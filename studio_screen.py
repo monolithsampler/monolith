@@ -248,20 +248,44 @@ def monolith_frame(e, c):
         line = "PICK: " + c.PICK[c.mpick] + "   F4 SELECT"
     if getattr(c, "confirm", None) is not None:                          # a question on the main screen: F1 CANCEL, F4 answers
         line = c.confirm["title"] + "   F1 CANCEL  F4 " + str(c.confirm["keys"][3][0][-1])
-    if c.mode == "MAIN" and e.machine == "MODERN" and c.mpick is None and not msg and getattr(c, "confirm", None) is None:
-        # MAIN's fields as on the touch screen: the one under the cursor inverted (arrows move it, the wheel changes it)
-        x = 2
-        keys = ["seq", "bars", "trk", "pgm"]
-        if c.main_field in ("swing", "q", "bpm"): keys[1] = c.main_field
-        for key in keys:
-            lb, t = c.MAIN_LABELS[key], c.main_value(key)
-            if x + tw(lb) + 4 + tw(t) > W - 2: break
-            text(a, x, 25, lb, 1, 120); x += tw(lb) + 4                   # the heading dim, the value bright
-            if key == c.main_field:
-                a[23:34, max(0, x - 2):min(W, x + tw(t) + 2)] = 255; text(a, x, 25, t, 1, 0)
-            else: text(a, x, 25, t, 1, 255)
-            x += tw(t) + 10
-    else: text(a, 2, 25, line[:59], 1, 255)
+    main_fields = c.mode == "MAIN" and e.machine == "MODERN" and c.mpick is None and getattr(c, "confirm", None) is None
+    if main_fields:
+        # MAIN (MODERN) as an MPC's LCD: the display's fields in three rows, the one under the cursor inverted
+        # (arrows move it, the wheel changes it). Nothing twice: tempo and swing live in their fields, the Q-link strip
+        # names the knob that turns them instead of repeating the number. A status message takes the top line briefly.
+        a[1:20, :] = 0
+        text(a, 2, 1, "MAIN", 2, 255)
+        st = f"{state} {bar:03d}.{beat}"
+        text(a, W - 2 - tw(st), 5, st, 1, 255 if e.playing or e.rec != "off" else 170)
+        if msg: text(a, 60, 5, msg.upper()[:int((W - 70 - tw(st)) / 6)], 1, 255)
+        a[20, :] = 85
+        grid = [[("seq", 2, 236), ("bars", 242, 116)], [("trk", 2, 170), ("pgm", 176, 182)],
+                [("swing", 2, 110), ("q", 116, 96), ("bpm", 242, 116)]]
+        for ri, row in enumerate(grid):
+            y = 24 + ri * 15
+            for key, x, w in row:
+                lb, t = c.MAIN_LABELS[key], c.main_value(key)
+                text(a, x, y, lb, 1, 120)
+                vx = x + tw(lb) + 4
+                t = t[:max(1, (x + w - vx) // 6)]
+                if key == c.main_field:
+                    a[y - 2:y + 9, max(0, vx - 2):min(W, vx + tw(t) + 2)] = 255; text(a, vx, y, t, 1, 0)
+                else: text(a, vx, y, t, 1, 255)
+        a[69, :] = 85
+        try: q = c.qlinks()
+        except Exception: q = []
+        shown = {"TEMPO", "SWING", "BPM"}
+        for i, (label, get, _, fmt) in enumerate(q[:4]):
+            x0 = i * 90
+            if i: a[71:96, x0] = 85
+            if label == "-": continue
+            text(a, x0 + 4, 73, f"Q{i + 1} " + label.upper()[:10], 1, 170)
+            if label.upper() in shown: text(a, x0 + 4, 85, "^ ABOVE", 1, 120); continue
+            try: val = str(fmt())
+            except Exception: val = ""
+            text(a, x0 + 4, 85, val[:14], 1, 255)
+        return Image.fromarray(a)
+    text(a, 2, 25, line[:59], 1, 255)
     a[37, :] = 85
     try: q = c.qlinks()
     except Exception: q = []
