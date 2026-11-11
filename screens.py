@@ -1856,110 +1856,22 @@ class Renderer:
                     else: c.pick_cur = i
                 self.hit((x0, y, 792, y + 24), down=pdown)
             return
-        # waveform: the whole sample (ZOOM: the region and a little either side), the region lit; drag its edges
-        src = p.src
-        rect = (x0, 74, 748, 138)
-        a, b = (0, src.length) if src else (0, 1)
-        if src and c.pw_zoom:
-            m_ = max(int(0.1 * p.length), int(0.02 * OUT_SR))
-            a, b = max(0, p.start - m_), min(src.length, p.end + m_)
-        tx = self.waveform(rect, src, a, b, region=(p.start, p.end) if src else None, play=e.playhead(p))
-        X_ = lambda pos: rect[0] + 1 + (pos - a) / float(max(1, b - a)) * (rect[2] - rect[0] - 2)
-        if src and e.sound_of(p) == "ASR-10" and e.asr_loops(p):          # the ASR-10 loop, in yellow
-            le_ = p.start + (p.a_le if p.a_le > 0 else p.length / OUT_SR) * OUT_SR
-            for xs in (p.start + p.a_ls * OUT_SR, le_):
-                if a <= xs <= b: d.line([X_(xs), rect[1] + 1, X_(xs), rect[3] - 1], fill=YEL, width=2)
-        if src:
-            linked = p.link is not None and p.link[0] == src.id
-            for cpos in src.chops:                                     # the sample's chop markers (thin)
-                if a <= cpos <= b: d.line([X_(cpos), rect[1] + 1, X_(cpos), rect[1] + 10], fill=DIM, width=1)
-            for xs, col in ((p.start, GREEN), (p.end, RED)):
-                if a <= xs <= b: d.line([X_(xs), rect[1] + 1, X_(xs), rect[3] - 1], fill=col, width=3)
-            def snap(f):
-                if not c.pw_snap: return f
-                w_ = src.raw[max(0, f - 256):f + 256]
-                zc = np.flatnonzero((w_[:-1] <= 0) & (w_[1:] > 0)) + max(0, f - 256)
-                return int(zc[np.argmin(np.abs(zc - f))]) if len(zc) else f
-            def wdown(px, py):
-                f = a + (px - rect[0]) / float(rect[2] - rect[0]) * (b - a)
-                c.prog_row = 1 if abs(f - p.start) <= abs(f - p.end) else 2
-                c._pw_msg = None
-            def wdrag(px, py):
-                f = snap(int(a + clamp((px - rect[0]) / float(rect[2] - rect[0]), 0, 1) * (b - a)))
-                r_ = e.set_region(p, start=f) if c.prog_row == 1 else e.set_region(p, end=f)
-                if r_ and getattr(c, "_pw_msg", None) != r_: c._pw_msg = r_; c.say(r_)
-            self.hit(rect, down=wdown, drag=wdrag)
-            info = f"{p.length / OUT_SR:.3f} s" + (f"  slice {p.link[1] + 1}/{e.slice_count(p)}" if linked else "  (own region)" if src.chops else "")
-            self.t(rect[2] - 6, rect[1] + 9, info, 9, False, DIM, "ra")
-        self.btn((752, 74, 792, 104), "ZOOM", lambda: setattr(c, "pw_zoom", not c.pw_zoom), 8, on=c.pw_zoom)
-        self.btn((752, 108, 792, 138), "SNAP", lambda: setattr(c, "pw_snap", not c.pw_snap), 8, on=c.pw_snap)
+        # the tabs, then the page drawn as a panel (progpanel): each setting the control it is; SAMPLES is a wave view
         if c.prog_row not in c.PROG_TABS[c.prog_tab][1]: c.prog_tab = c.prog_tab_of(c.prog_row)
         tabs_ = c.PROG_TABS
-        tw_ = (792 - x0 + 6) // len(tabs_)
         SHORT = {"ENVELOPES": "ENVELOPE", "MODULATION": "MOD"}
-        self.well((x0, 142, 792, 170), 6, (22, 24, 28), 5)                # GLOBAL / SAMPLES / ENVELOPES / (LFO / MODULATION) / EFFECTS
+        self.well((x0, 73, 792, 99), 6, (22, 24, 28), 5)                # GLOBAL / SAMPLES / ENVELOPES / (LFO / MODULATION) / EFFECTS
         sw_ = (792 - x0 - 6 - 3 * (len(tabs_) - 1)) / float(len(tabs_))
         for k, (tname, rows_) in enumerate(tabs_):
             bx = x0 + 3 + k * (sw_ + 3)
             lab_ = SHORT.get(tname, tname) if len(tabs_) > 4 else tname
             on_ = k == c.prog_tab
-            self.keycap((bx, 145, bx + sw_, 167), "down" if on_ else "up", 4.5)
-            if on_: self.ledp(bx + 9, 156, 3.4, True)
-            self.lab(bx + sw_ / 2 + (4 if on_ else 0), 156, lab_, 5.8, (244, 246, 249) if on_ else (140, 147, 160), "mm", "s", 0.08)
-            self.hit((bx, 142, bx + sw_, 170), down=lambda *_, k=k: c.set_prog_tab(k))
-        rows_now = c.PROG_TABS[c.prog_tab][1]
-        ncol = (len(rows_now) + 3) // 4
-        glob = c.prog_tab_name() == "GLOBAL"
-        if glob:                                                       # the pad (2 rows of 3), then its machine's sound
-            ncol = 3
-            mrows = c.machine_rows()
-            snd = e.sound_of(e.prog)
-            hy = 174 + 2 * 44
-            if e.prog.sound: head = f"{snd} SOUND  -  this program only"
-            else: head = f"{snd} SOUND  -  from the machine"
-            self.lab(x0 + 2, hy + 8, head.upper(), 6.2, ORANGE, "lm", "s", 0.12)
-            npg = len(c.machine_pages())
-            if npg > 1:                                                # more options than fit: a page button on the heading
-                def nextpg():
-                    c.mach_page = (c.mach_page + 1) % npg
-                    if c.prog_row not in c.machine_rows() and c.prog_row not in (4, 5, 43, 6, 7, 13): c.prog_row = c.machine_rows()[0]
-                self.btn((732, hy - 2, 792, hy + 18), f"{c.mach_page + 1}/{npg}  >", nextpg, 9)
-        cw_ = (792 - x0 - 6 * (ncol - 1)) / float(ncol)
-        for slot, row in enumerate(rows_now):
-            if glob:
-                if slot < 6: col, r, y = slot % 3, slot // 3, 174 + (slot // 3) * 44
-                else: col, y = (slot - 6) % 3, 174 + 2 * 44 + 20 + ((slot - 6) // 3) * 44
-            else:
-                col, r = slot // 4, slot % 4
-                y = 174 + r * 49
-            x = x0 + col * (cw_ + 6)
-            x1_ = x + cw_
-            sel = row == c.prog_row
-            warp_on = row == 14 and p.warp
-            rh = 40 if glob else 44
-            if sel: self.keycap((x, y, x1_, y + rh), "lit", 6)
-            else: self.well((x, y, x1_, y + rh), 6, (23, 25, 29), 6)
-            if warp_on: d.rounded_rectangle([x + 1, y + 1, x1_ - 1, y + rh - 1], 6, outline=CYAN, width=1.2)
-            self.lab(x + 9, y + 10, self.prog_label(row).upper()[:28], 5.8, (255, 255, 255) if sel else skin.LAB, "lm", "s", 0.1)
-            val = self.prog_value(row)
-            room = cw_ - 16
-            big = 14
-            while big > 10 and d.textlength(val, font=font(big, True)) > room: big -= 1
-            while len(val) > 3 and d.textlength(val, font=font(big, True)) > room: val = val[:-2] + "\u2026"   # too long: cut short
-            self.t(x1_ - 9, y + rh - 13, val, big, True, CYAN if warp_on else (246, 247, 250) if sel else (214, 218, 226), "rm")
-            state = {}
-            def rdown(px, py, row=row, state=state):
-                c.prog_row = row; state["x"] = px; state["moved"] = False
-                if row == 0: c.ok()
-                elif row in c.PROG_TOGGLES: c.prog_adjust(row, 1)
-            def rdrag(px, py, row=row, state=state):
-                if row == 0 or row in c.PROG_TOGGLES: return
-                step = int((px - state["x"]) / 8)
-                if step:
-                    c.prog_adjust(row, step); state["x"] = px
-            self.hit((x, y, x1_ + 1, y + rh + 2), down=rdown, drag=rdrag)
-        if c.prog_tab_name() == "ENVELOPES" and e.sound_of(e.prog) == "ASR-10":
-            self.asr_env_graph(x0 + 3 * (cw_ + 6), 174 + 49, 792, 174 + 3 * 49 + 44, p)
+            self.keycap((bx, 76, bx + sw_, 96), "down" if on_ else "up", 4.5)
+            if on_: self.ledp(bx + 9, 86, 3.4, True)
+            self.lab(bx + sw_ / 2 + (4 if on_ else 0), 86, lab_, 5.8, (244, 246, 249) if on_ else (140, 147, 160), "mm", "s", 0.08)
+            self.hit((bx, 73, bx + sw_, 99), down=lambda *_, k=k: c.set_prog_tab(k))
+        import progpanel
+        progpanel.page(self, x0, 104, 792, 370)
 
     def asr_env_graph(self, x0, y0, x1, y1, p):
         """the ASR-10 amp envelope's shape: hard velocity (bright) and soft (dim), held a moment at SUSTAIN, then RELEASE"""

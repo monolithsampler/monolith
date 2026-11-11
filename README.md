@@ -391,6 +391,10 @@ controller (e.g. an Akai MPK249) are enough. Run `python3 sampler_os.py --no-ard
   arrows move it, the wheel (DATA + / -) changes the field, or tap a field. A new sequence picked while playing starts
   when the current one ends. On SONG, up / down picks the step, the wheel or a pad picks its sequence, left / right sets
   its repeats.
+- **PROG pages:** every setting is drawn as what it is: knobs for values, keys with LEDs for on / off, rows of keys for
+  choices, amber windows for numbers and names. The four Q-link knobs' settings carry a Q1-Q4 tag. SAMPLES is a wave view
+  as on an MPC: a ruler over the waveform (bars and beats with WARP on), START / END flags to drag, and the warp controls
+  together (WARP, SAMPLE BPM with x2 / /2 / AUTO, STRETCH). With WARP on, Q3 is SAMPLE BPM and Q4 STRETCH.
 - **Into the beat:** NEW PROGRAM puts the new program on the current track if it is empty, otherwise on the first empty
   track of the sequence, and selects it: press REC and play the pads. Every track plays its own program: MAIN shows it as
   a PGM chip on each track row (P01, P02 ...); tap the chip for the next program that has sounds.

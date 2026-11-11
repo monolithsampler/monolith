@@ -327,6 +327,15 @@ class Controls:
         elif f == "q": e.qgrid = int(clamp(e.qgrid + n, 0, len(QUANT) - 1))
         else: sq.bpm = clamp(round(sq.bpm + (0.1 if self.shift else 0.5) * acc, 1), 60.0, 180.0)
 
+    def prog_view(self):
+        """the part of the pad's sample PROG's wave view shows: all of it, or (ZOOM) the region and a little either side"""
+        p = self.e.pad
+        if p.src is None: return 0, 1
+        if self.pw_zoom:
+            m_ = max(int(0.1 * p.length), int(0.02 * OUT_SR))
+            return max(0, p.start - m_), min(p.src.length, p.end + m_)
+        return 0, p.src.length
+
     def track_prog_step(self, k, d=1):
         """MAIN: the program track k plays (the PGM chip on its row): the next / previous program that has sounds"""
         e = self.e
@@ -1114,15 +1123,26 @@ class Controls:
                     ("Pad", lambda: e.pad_idx / 63.0, lambda f: self._pick_pad(int(round(f * 63))), lambda: f"{BANKS[e.bank]}{e.sel + 1:02d}"),
                     lin("Pad level", p, "vol", 0, 1, lambda v: f"{v * 100:.0f}%")]
         if m == "PROG" and self.prog_tab_name() == "SAMPLES":
-            n_ = float(p.src.length) if p.src is not None else 1.0
-            def set_edge(f, which):
+            # START / END move across the visible waveform (ZOOM in for finer moves, SHIFT finer still), as in CHOP.
+            # With WARP on, Q3 / Q4 are the warp pair: SAMPLE BPM and STRETCH (MPC 2.x); off: FINE and TUNE.
+            def edge_get(which):
+                a_, b_ = self.prog_view()
+                return clamp((getattr(p, which) - a_) / float(max(1, b_ - a_)), 0.0, 1.0)
+            def edge_set(f, which):
                 if p.src is None: return
-                r_ = e.set_region(p, **{which: int(f * n_)})
+                a_, b_ = self.prog_view()
+                r_ = e.set_region(p, **{which: int(a_ + f * (b_ - a_))})
                 if r_: self.say(r_)
-            third = (lin("Stretch", p, "stretch", 25, 400, lambda v: f"{v}%", 0) if p.warp else
-                     lin("Fine", p, "fine", -99, 99, lambda v: f"{v:+d} ct" if v else "0", 0))
-            return [("Start", lambda: p.start / n_, lambda f: set_edge(f, "start"), lambda: f"{p.start / OUT_SR:.3f} s"),
-                    ("End", lambda: p.end / n_, lambda f: set_edge(f, "end"), lambda: f"{p.end / OUT_SR:.3f} s"), third, tune]
+            def bpm_set(f):
+                if p.src is None: return
+                p.warp_bpm = round(60.0 + f * 140.0, 1); e.set_warp(p, True); e.pad_changed(p)
+            edges = [("Start", lambda: edge_get("start"), lambda f: edge_set(f, "start"), lambda: f"{p.start / OUT_SR:.3f} s"),
+                     ("End", lambda: edge_get("end"), lambda f: edge_set(f, "end"), lambda: f"{p.end / OUT_SR:.3f} s")]
+            if p.warp:
+                return edges + [("Sample BPM", lambda: clamp(((p.warp_bpm or 90.0) - 60.0) / 140.0, 0.0, 1.0), bpm_set,
+                                 lambda: f"{p.warp_bpm:.1f}"),
+                                lin("Stretch", p, "stretch", 25, 400, lambda v: f"{v}%", 0)]
+            return edges + [lin("Fine", p, "fine", -99, 99, lambda v: f"{v:+d} ct" if v else "0", 0), tune]
         if m == "PROG" and self.prog_tab_name() == "EFFECTS":
             fxp = e.get_fx(p)
             out = []
