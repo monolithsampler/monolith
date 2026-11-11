@@ -248,7 +248,20 @@ def monolith_frame(e, c):
         line = "PICK: " + c.PICK[c.mpick] + "   F4 SELECT"
     if getattr(c, "confirm", None) is not None:                          # a question on the main screen: F1 CANCEL, F4 answers
         line = c.confirm["title"] + "   F1 CANCEL  F4 " + str(c.confirm["keys"][3][0][-1])
-    text(a, 2, 25, line[:59], 1, 255)
+    if c.mode == "MAIN" and e.machine == "MODERN" and c.mpick is None and not msg and getattr(c, "confirm", None) is None:
+        # MAIN's fields as on the touch screen: the one under the cursor inverted (arrows move it, the wheel changes it)
+        x = 2
+        segs = [("seq", c.main_value("seq").replace("SEQUENCE", "SEQ")), ("bars", f"{sq.bars} BARS"),
+                ("trk", c.main_value("trk")), ("pgm", c.main_value("pgm"))]
+        if c.main_field in ("swing", "q", "bpm"): segs = segs[:1] + [(c.main_field, c.main_value(c.main_field))] + segs[2:]
+        for key, t in segs:
+            w = tw(t)
+            if x + w > W - 2: break
+            if key == c.main_field:
+                a[23:34, max(0, x - 2):min(W, x + w + 2)] = 255; text(a, x, 25, t, 1, 0)
+            else: text(a, x, 25, t, 1, 255)
+            x += w + 9
+    else: text(a, 2, 25, line[:59], 1, 255)
     a[37, :] = 85
     try: q = c.qlinks()
     except Exception: q = []

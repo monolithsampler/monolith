@@ -114,14 +114,30 @@ def panel(r):
         r.img.paste(gl, (lx, ly))
         sq, tr = e.seq, e.track
         amb, dim = (255, 176, 102), (230, 150, 86)
-        r.vt((lx + q(14)) / sc, (ly + q(22)) / sc, f"SEQUENCE {e.cur_seq + 1:02d}" if not sq.name.startswith("Seq") else f"SEQUENCE {e.cur_seq + 1:02d}", 19, amb)
-        r.vt((lx + lw - q(14)) / sc, (ly + q(22)) / sc, f"{sq.num}/{sq.den}  {sq.bars} BARS", 11.5, dim, "rm")
-        prog = e.programs[tr.prog].name if hasattr(e, "programs") else ""
-        r.vt((lx + q(14)) / sc, (ly + q(54)) / sc, f"TRK {tr.n + 1:02d} {tr.name.upper()[:12]}   PGM {prog.upper()[:8]}  BANK {'ABCD'[e.bank]}", 12.5, amb,
-             maxw=(lw - q(28)) / sc)
-        qn = __import__("engine").QUANT[e.qgrid][0]
-        r.vt((lx + q(14)) / sc, (ly + q(84)) / sc, f"SWING {sq.swing * 100:.0f}%   Q {qn}", 11.5, dim)
-        r.vt((lx + lw - q(14)) / sc, (ly + q(84)) / sc, f"{sq.bpm:.1f} BPM", 11.5, dim, "rm")
+        # the fields: the arrows put a cursor on one (drawn inverted, as on an MPC), the wheel changes it; tap one to pick it
+        live = c.mode == "MAIN" and c.mpick is None
+
+        def fld(x, y, key, size, col, anchor="lm", maxw=None):
+            txt = c.main_value(key) if key else bank_txt
+            px = r.ro_px(size, txt, maxw)
+            w = skin.face("departure", px).getlength(txt)
+            x0 = x if anchor == "lm" else x - w
+            on = live and key == c.main_field
+            if on:
+                D.rectangle([x0 - q(5), y - px * 0.62, x0 + w + q(5), y + px * 0.58], fill=amb); col = (19, 11, 5)
+            r.vt(x / sc, y / sc, txt, size, col, anchor, maxw=maxw)
+            if live and key: r.hit(((x0 - q(6)) / sc, (y - q(14)) / sc, (x0 + w + q(6)) / sc, (y + q(14)) / sc),
+                                   down=lambda *_, k=key: setattr(c, "main_field", k))
+            return x0 + w
+        bank_txt = f"BANK {'ABCD'[e.bank]}"
+        fld(lx + q(14), ly + q(22), "seq", 19, amb)
+        fld(lx + lw - q(14), ly + q(22), "bars", 11.5, dim, "rm")
+        xe = fld(lx + q(14), ly + q(54), "trk", 12.5, amb)
+        xe = fld(xe + q(22), ly + q(54), "pgm", 12.5, amb)
+        fld(lx + lw - q(14), ly + q(54), None, 11.5, dim, "rm")
+        xe = fld(lx + q(14), ly + q(84), "swing", 11.5, dim)
+        fld(xe + q(22), ly + q(84), "q", 11.5, dim)
+        fld(lx + lw - q(14), ly + q(84), "bpm", 11.5, dim, "rm")
         # name where a badge would be
         mid = (wx + lw + q(8) + inner_x1) / 2.0
         room = (inner_x1 - (wx + lw + q(8)) - q(20)) / sc               # between the display and the facia's edge

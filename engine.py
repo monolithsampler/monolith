@@ -2100,7 +2100,7 @@ class Engine:
         if self.rec != "off":
             if self.playing: self.begin_edit(); self._replace_pending = self.rec == "rec"
             elif start: self.play()
-        self.say({"off": "record off", "rec": "RECORD (replaces this track)", "over": "OVERDUB"}[self.rec])
+        self.say({"off": "record off", "rec": "RECORD (replaces)", "over": "OVERDUB"}[self.rec])
 
     def locate(self, tick):
         self.pos = float(max(0, min(self.seq.length - 1, tick)))

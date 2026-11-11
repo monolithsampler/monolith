@@ -387,6 +387,10 @@ controller (e.g. an Akai MPK249) are enough. Run `python3 sampler_os.py --no-ard
   silence off a slice; parts no slice plays are shaded. A turn moves an edge across the visible window, so zoom in
   (up / down or Q4) for finer moves, and hold SHIFT for finer still. F2 SPLIT cuts the selected slice at the dotted cursor
   (the jog wheel moves it), F3 MERGE joins it with the next. Running a detection again (Q1, DETECT) starts the slices afresh.
+- **MAIN, the MPC way:** on MODERN the display's fields (SEQUENCE, BARS, TRK, PGM, SWING, Q, BPM) take a cursor: the
+  arrows move it, the wheel (DATA + / -) changes the field, or tap a field. A new sequence picked while playing starts
+  when the current one ends. On SONG, up / down picks the step, the wheel or a pad picks its sequence, left / right sets
+  its repeats.
 - **Into the beat:** NEW PROGRAM puts the new program on the current track if it is empty, otherwise on the first empty
   track of the sequence, and selects it: press REC and play the pads. Every track plays its own program: MAIN shows it as
   a PGM chip on each track row (P01, P02 ...); tap the chip for the next program that has sounds.

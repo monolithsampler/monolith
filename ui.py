@@ -91,6 +91,7 @@ class Controls:
         self.fx_browse = False                                        # FX: the effect library is open over the faceplate
         self.valve_case, self.valve_pick = None, 0                    # FX valve drive: the valve case open for V1 / V2, valve highlighted
         self.song_cur = 0
+        self.main_field = "seq"             # MAIN (MODERN): the display field the arrows pick and the wheel changes
         self.editor_fx, self.editor_req, self.editor_view = None, None, None
         self.editor_zooms = {}                              # last zoom per plug-in (path -> factor)
         import midi as _midi
@@ -284,6 +285,44 @@ class Controls:
             elif down: self.cycle_pad_mode() if name == "PADMODE" else self.cycle_qlink()
             return
         self.button(BTN[name], down)
+
+    # MAIN on MODERN works like an MPC's main screen: the arrows move a cursor over the display's fields, the wheel
+    # (DATA + / -) changes the one under it. Playing, a new sequence starts when this one ends.
+    MAIN_ROWS = [["seq", "bars"], ["trk", "pgm"], ["swing", "q", "bpm"]]
+
+    def main_move(self, d):
+        rows = self.MAIN_ROWS
+        ri = next(i for i, r_ in enumerate(rows) if self.main_field in r_)
+        ci = rows[ri].index(self.main_field)
+        if d in ("left", "right"):
+            flat = [f for r_ in rows for f in r_]
+            self.main_field = flat[(flat.index(self.main_field) + (1 if d == "right" else -1)) % len(flat)]
+        else:
+            ri = (ri + (1 if d == "down" else -1)) % len(rows)
+            self.main_field = rows[ri][min(ci, len(rows[ri]) - 1)]
+
+    def main_value(self, f):
+        e = self.e; sq = e.seq; tr = e.track
+        nxt = f" > {e.next_seq + 1:02d}" if (f == "seq" and e.next_seq is not None) else ""
+        empty = not any(t.events for t in sq.tracks)
+        return {"seq": f"SEQUENCE {e.cur_seq + 1:02d}{nxt}" + (" EMPTY" if empty and not nxt else ""),
+                "bars": f"{sq.num}/{sq.den}  {sq.bars} BARS",
+                "trk": f"TRK {tr.n + 1:02d} {tr.name.upper()[:9]}",
+                "pgm": f"PGM {e.programs[tr.prog].name.upper()[:9]}",
+                "swing": f"SWING {sq.swing * 100:.0f}%", "q": f"Q {QUANT[e.qgrid][0]}", "bpm": f"{sq.bpm:.1f} BPM"}[f]
+
+    def main_adjust(self, n, acc=None):
+        e = self.e; sq = e.seq; f = self.main_field
+        acc = n if acc is None else acc
+        if f == "seq":
+            base = e.next_seq if (e.playing and e.next_seq is not None) else e.cur_seq
+            e.queue_seq((base + n) % NSEQ)
+        elif f == "bars": e.set_bars(int(clamp(sq.bars + n, 1, MAX_BARS))); self.say(f"{e.seq.bars} bars")
+        elif f == "trk": e.cur_track = (e.cur_track + n) % 16
+        elif f == "pgm": self.track_prog_step(e.cur_track, 1 if n > 0 else -1)
+        elif f == "swing": sq.swing = round(clamp(sq.swing + 0.01 * n, 0.5, 0.75), 2)
+        elif f == "q": e.qgrid = int(clamp(e.qgrid + n, 0, len(QUANT) - 1))
+        else: sq.bpm = clamp(round(sq.bpm + (0.1 if self.shift else 0.5) * acc, 1), 60.0, 180.0)
 
     def track_prog_step(self, k, d=1):
         """MAIN: the program track k plays (the PGM chip on its row): the next / previous program that has sounds"""
@@ -1791,7 +1830,7 @@ class Controls:
         elif m == "MAIN" and e.machine != "MODERN":
             self.lcd_nav(d)
         elif m == "MAIN":
-            self.select((e.sel + {"left": -1, "right": 1, "up": 4, "down": -4}[d]) % 16)
+            self.main_move(d)
         elif m == "MUTE":                                          # the eight strips: left / right; up / down: the other eight
             if d in ("left", "right"): e.cur_track = (e.cur_track + (1 if d == "right" else -1)) % 16
             else: e.cur_track = (e.cur_track + 8) % 16
@@ -1910,7 +1949,7 @@ class Controls:
             import machines
             machines.adjust(e, self.lcd_cur, acc if self.lcd_cur in ("bpm", "vel") else n)
         elif m == "MAIN":
-            sq.bpm = clamp(round(sq.bpm + (0.1 if self.shift else 0.5) * acc, 1), 60.0, 180.0)
+            self.main_adjust(n, acc)
         elif m == "SEQ":                                                 # the playhead: a beat a click (SHIFT: a 16th)
             e.locate(e.pos + acc * (sq.beat_ticks // 4 if self.shift else sq.beat_ticks))
         elif m == "MUTE":
@@ -1958,8 +1997,10 @@ class Controls:
                 self.valve_pick = clamp(self.valve_pick + n, 0, len(VALVES_V1 if self.valve_case == 1 else VALVES_V2) - 1)
             elif self.fx_browse: self.fx_cursor = clamp(self.fx_cursor + n, 0, len(self.fx_items) - 1)
             else: self.fx_step(n)
-        elif m == "SONG":                                                # the highlighted step's repeats (up / down picks the step)
-            if e.song: st = e.song[self.song_cur]; st[1] = int(clamp(st[1] + n, 1, 16))
+        elif m == "SONG":                         # the wheel: the highlighted step's sequence (up / down = step, left / right = repeats)
+            if e.song:
+                st = e.song[self.song_cur]; st[0] = (st[0] + (1 if n > 0 else -1)) % NSEQ
+                self.say(f"step {self.song_cur + 1:02d}: sequence {st[0] + 1:02d} {e.seqs[st[0]].name}")
 
     def jog_speed(self):
         """how fast the wheel is turning: 1 (slow) .. 10 (spun), from the gap between clicks"""
@@ -2510,6 +2551,11 @@ class Controls:
             self.pad_flash[n] = time.time(); self.mute_tap(n - 1); return
         if self.mode == "STEP" and e.track.kind not in NOTE_KINDS:
             self.step_toggle(n - 1)
+            return
+        if self.mode == "SONG" and e.song and not e.playing:      # SONG: pad n = sequence n for the highlighted step
+            st = e.song[self.song_cur]; st[0] = (n - 1) % NSEQ
+            self.pad_flash[n] = time.time()
+            self.say(f"step {self.song_cur + 1:02d}: sequence {st[0] + 1:02d} {e.seqs[st[0]].name}")
             return
         if self.mode == "CHOP" and self.src is not None:          # CHOP: pad n plays (and selects) slice n of this bank
             k = e.bank * 16 + n - 1

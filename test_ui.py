@@ -1825,7 +1825,7 @@ ok("SHIFT = fine: DECAY steps 1 ms with SHIFT (50 ms without, above 200)", _p.de
 _p.vol = 0.5; cu2.prog_row = 4; cu2._jog_t = 0.0
 for _ in range(20): cu2.jog(1, fast=True)
 ok("fast jog: a spun wheel takes bigger steps on values", _p.vol > 0.5 + 20 * 0.01 + 1e-9)
-cu2.set_mode("MAIN"); _bpm = eu2.seq.bpm; cu2.shift = True; cu2.jog(1); cu2.shift = False
+cu2.set_mode("MAIN"); cu2.main_field = "bpm"; _bpm = eu2.seq.bpm; cu2.shift = True; cu2.jog(1); cu2.shift = False
 ok("SHIFT = fine: MAIN BPM 0.1 with SHIFT", abs(eu2.seq.bpm - (_bpm + 0.1)) < 1e-6)
 cu2.set_mode("CHOP"); _s_ = eu2.pad.src
 if _s_ is not None:
@@ -1843,7 +1843,7 @@ cu2.set_mode("MAIN"); ok("MAIN: F4 is MENU (SAVE lives in MENU and on SHIFT + PL
 cu2.soft(3); ok("MAIN: F4 opens MENU", cu2.mode == "MENU")
 cu2.set_mode("PROG"); cu2.prog_front = True; cu2.soft(3); ok("PROG front: F4 EFFECTS opens FX on the pad", cu2.mode == "FX" and cu2.fx_target == eu2.pad_idx)
 cu2.set_mode("SONG"); eu2.song[:] = [[0, 2], [1, 1]]; cu2.song_cur = 0; cu2.jog(3)
-ok("SONG: the jog changes the highlighted step's repeats", eu2.song[0][1] == 5 and cu2.song_cur == 0)
+ok("SONG: the jog changes the highlighted step's sequence", eu2.song[0][0] == 1 and cu2.song_cur == 0)
 cu2.ok(); ok("SONG: OK goes to that step's sequence in SEQ", cu2.mode == "SEQ")
 cu2.set_mode("SONG"); ok("SONG: F4 is BACK", cu2.soft_labels()[3] == BACK_)
 cu2.button(BTN["SHIFT"], True); ok("SHIFT legend: not straight away", not cu2.show_legend())
