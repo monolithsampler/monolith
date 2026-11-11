@@ -301,15 +301,18 @@ class Controls:
             ri = (ri + (1 if d == "down" else -1)) % len(rows)
             self.main_field = rows[ri][min(ci, len(rows[ri]) - 1)]
 
+    MAIN_LABELS = {"seq": "SEQ", "bars": "BARS", "trk": "TRK", "pgm": "PGM", "swing": "SWING", "q": "Q", "bpm": "BPM"}
+
     def main_value(self, f):
+        """the value alone (the display prints its label next to it, so value and heading look different)"""
         e = self.e; sq = e.seq; tr = e.track
-        nxt = f" > {e.next_seq + 1:02d}" if (f == "seq" and e.next_seq is not None) else ""
-        empty = not any(t.events for t in sq.tracks)
-        return {"seq": f"SEQUENCE {e.cur_seq + 1:02d}{nxt}" + (" EMPTY" if empty and not nxt else ""),
-                "bars": f"{sq.num}/{sq.den}  {sq.bars} BARS",
-                "trk": f"TRK {tr.n + 1:02d} {tr.name.upper()[:9]}",
-                "pgm": f"PGM {e.programs[tr.prog].name.upper()[:9]}",
-                "swing": f"SWING {sq.swing * 100:.0f}%", "q": f"Q {QUANT[e.qgrid][0]}", "bpm": f"{sq.bpm:.1f} BPM"}[f]
+        if f == "seq":
+            if e.next_seq is not None: return f"{e.cur_seq + 1:02d} > {e.next_seq + 1:02d}"
+            empty = not any(t.events for t in sq.tracks)
+            return f"{e.cur_seq + 1:02d} " + ("EMPTY" if empty else sq.name.upper()[:12])
+        return {"bars": str(sq.bars), "trk": f"{tr.n + 1:02d} {tr.name.upper()[:9]}",
+                "pgm": e.programs[tr.prog].name.upper()[:9], "swing": f"{sq.swing * 100:.0f}%",
+                "q": QUANT[e.qgrid][0], "bpm": f"{sq.bpm:.1f}"}[f]
 
     def main_adjust(self, n, acc=None):
         e = self.e; sq = e.seq; f = self.main_field

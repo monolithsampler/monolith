@@ -114,30 +114,52 @@ def panel(r):
         r.img.paste(gl, (lx, ly))
         sq, tr = e.seq, e.track
         amb, dim = (255, 176, 102), (230, 150, 86)
-        # the fields: the arrows put a cursor on one (drawn inverted, as on an MPC), the wheel changes it; tap one to pick it
+        # headings and values look different: a heading is small printed lettering on the glass (dim, letter-spaced); a
+        # value you can change sits in a field box in the display font; the field under the cursor is lit (inverted).
+        # Arrows move the cursor, the wheel changes the value, a tap picks the field. Info that cannot be changed
+        # (4/4, BANK) is plain display text with no box.
         live = c.mode == "MAIN" and c.mpick is None
+        head_col, box_col = (176, 112, 58), (96, 58, 26)
 
-        def fld(x, y, key, size, col, anchor="lm", maxw=None):
-            txt = c.main_value(key) if key else bank_txt
-            px = r.ro_px(size, txt, maxw)
+        def head(x, y, txt, anchor="l"):
+            im = skin.tracked(txt, r.P(4.6), "s", head_col, 0.14)
+            px = x if anchor == "l" else x - im.width
+            r.img.paste(im, (int(px), int(y - im.height / 2)), im)
+            return px, px + im.width
+
+        def val(x, y, key, size, col, anchor="l"):
+            txt = c.main_value(key)
+            px = r.ro_px(size, txt)
             w = skin.face("departure", px).getlength(txt)
-            x0 = x if anchor == "lm" else x - w
-            on = live and key == c.main_field
-            if on:
-                D.rectangle([x0 - q(5), y - px * 0.62, x0 + w + q(5), y + px * 0.58], fill=amb); col = (19, 11, 5)
-            r.vt(x / sc, y / sc, txt, size, col, anchor, maxw=maxw)
-            if live and key: r.hit(((x0 - q(6)) / sc, (y - q(14)) / sc, (x0 + w + q(6)) / sc, (y + q(14)) / sc),
-                                   down=lambda *_, k=key: setattr(c, "main_field", k))
-            return x0 + w
-        bank_txt = f"BANK {'ABCD'[e.bank]}"
-        fld(lx + q(14), ly + q(22), "seq", 19, amb)
-        fld(lx + lw - q(14), ly + q(22), "bars", 11.5, dim, "rm")
-        xe = fld(lx + q(14), ly + q(54), "trk", 12.5, amb)
-        xe = fld(xe + q(22), ly + q(54), "pgm", 12.5, amb)
-        fld(lx + lw - q(14), ly + q(54), None, 11.5, dim, "rm")
-        xe = fld(lx + q(14), ly + q(84), "swing", 11.5, dim)
-        fld(xe + q(22), ly + q(84), "q", 11.5, dim)
-        fld(lx + lw - q(14), ly + q(84), "bpm", 11.5, dim, "rm")
+            x0 = x if anchor == "l" else x - w
+            bx0, by0, bx1, by1 = x0 - q(5), y - px * 0.66, x0 + w + q(5), y + px * 0.62
+            if live and key == c.main_field:
+                D.rounded_rectangle([bx0, by0, bx1, by1], q(2), fill=amb); col = (19, 11, 5)
+            else: D.rounded_rectangle([bx0, by0, bx1, by1], q(2), outline=box_col, width=max(1, q(1)))
+            r.vt(x0 / sc, y / sc, txt, size, col, "lm")
+            if live: r.hit(((bx0 - q(4)) / sc, (y - q(15)) / sc, (bx1 + q(4)) / sc, (y + q(15)) / sc),
+                           down=lambda *_, k=key: setattr(c, "main_field", k))
+            return bx0, bx1
+
+        def pair(x, y, key, size, col):                                  # heading, then its value box (left to right)
+            _, he = head(x, y, c.MAIN_LABELS[key])
+            return val(he + q(10), y, key, size, col)[1]
+
+        def rpair(xr, y, key, size, col):                                # the same, ending at xr
+            bx0, _ = val(xr - q(5), y, key, size, col, "r")
+            return head(bx0 - q(8), y, c.MAIN_LABELS[key], "r")[0]
+
+        L, R = lx + q(16), lx + lw - q(14)
+        y1, y2, y3 = ly + q(24), ly + q(56), ly + q(85)
+        pair(L, y1, "seq", 19, amb)
+        xb = rpair(R, y1, "bars", 11.5, amb)
+        r.vt((xb - q(12)) / sc, y1 / sc, f"{sq.num}/{sq.den}", 11.5, dim, "rm")
+        xe = pair(L, y2, "trk", 12.5, amb)
+        pair(xe + q(18), y2, "pgm", 12.5, amb)
+        r.vt(R / sc, y2 / sc, f"BANK {'ABCD'[e.bank]}", 11.5, dim, "rm")
+        xe = pair(L, y3, "swing", 11.5, amb)
+        pair(xe + q(18), y3, "q", 11.5, amb)
+        rpair(R, y3, "bpm", 11.5, amb)
         # name where a badge would be
         mid = (wx + lw + q(8) + inner_x1) / 2.0
         room = (inner_x1 - (wx + lw + q(8)) - q(20)) / sc               # between the display and the facia's edge
