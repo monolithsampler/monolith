@@ -359,15 +359,25 @@ def tracked(txt, px, weight, color, spacing=0.12):
     key = ("trk", txt, px, weight, color, spacing)
 
     def make():
-        f = face("michroma", max(7, round(px * 0.9)))                    # Michroma, as on the artboards (it runs wide: a touch smaller,
-        sp_ = spacing * 0.5                                               # and less extra tracking - it is spaced out already)
-        adv = [f.getlength(ch) + sp_ * px for ch in txt]
-        wd = int(sum(adv) - sp_ * px) + 4
+        # drawn 4x and scaled down: at label sizes FreeType's hinting snaps each letter on its own, so round letters
+        # (S, O, C) came out taller than the rest on some systems (the Pi). Drawn large, every letter keeps its true size.
+        K = 4
+        size = max(7, round(px * 0.9))                                    # Michroma, as on the artboards (it runs wide: a touch smaller,
+        f = face("michroma", size * K)                                    # and less extra tracking - it is spaced out already)
+        sp_ = spacing * 0.5
+        adv = [f.getlength(ch) + sp_ * px * K for ch in txt]
+        wd = int(sum(adv) - sp_ * px * K) + 4 * K
         asc, desc = f.getmetrics()
-        im = Image.new("RGBA", (max(1, wd), asc + desc + 2), (0, 0, 0, 0))
-        d = ImageDraw.Draw(im); x = 0
+        hh = asc + desc + 2 * K
+        m = Image.new("L", (max(K, wd), hh), 0)
+        d = ImageDraw.Draw(m); x = 0.0
         for ch, a in zip(txt, adv):
-            d.text((x, 0), ch, font=f, fill=_rgba(color)); x += a
+            d.text((x, 0), ch, font=f, fill=255); x += a
+        w1, h1 = max(1, -(-m.width // K)), max(1, -(-hh // K))
+        m = m.resize((w1, h1), Image.LANCZOS)
+        im = Image.new("RGBA", (w1, h1), _rgba(color))
+        a_ = m.point(lambda v: v * _rgba(color)[3] // 255) if len(_rgba(color)) == 4 else m
+        im.putalpha(a_)
         return im
     return cached(key, make)
 

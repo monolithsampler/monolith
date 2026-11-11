@@ -65,6 +65,7 @@ class Studio:
         self.dev, self.lock = None, threading.Lock()
         self.lit, self.scroll_prev, self.q_prev = {}, None, [None] * 4
         self.q_log = 0
+        self.q_abs, self.q_rel, self.q_rep = False, False, [0] * 4
         self.pad_lit = {}
         self.full_level = False
         self._jog_acc = 0
@@ -165,10 +166,9 @@ class Studio:
         if kind == 0xB0 and m[1] in QLINK_CC:                                # Q-links: endless, used as relative
             i = QLINK_CC[m[1]]
             v = m[2]
-            if self.q_log < 24:                                           # the first raw values go in the log (for checking)
+            if self.q_log < 40:                                           # the first raw values go in the log (for checking)
                 self.q_log += 1; print(f"studio q-link {i + 1}: {v}")
-            # endless knobs: each message is a step, not a position. 1-63 = up that many, 65-127 = down (128 - v)
-            steps = v if v < 64 else v - 128
+            steps = self.q_steps(i, v)
             if steps:
                 fine = bool(getattr(c, "shift", False))                    # SHIFT = fine, as everywhere
                 if fine: c.shift_used = True
@@ -189,6 +189,23 @@ class Studio:
         elif kind == 0xB0: name, down = BUTTONS.get(("c", m[1])), m[2] >= 64
         else: return
         if name: self.button(name, down)
+
+    def q_steps(self, i, v):
+        """how far a Q-link moved. The Studio sends the knob's position (0-127): the change from the last position is the
+        move, so a parameter follows the knob gradually from wherever it is (no jump to the knob's position). Turning on
+        at either end (127 again, or 0 again) keeps going one step at a time, so a value is never stuck short of its range.
+        If a knob turns out to send steps instead (the same small value over and over, 1-7 up / 121-127 down, never a
+        mid-range number), it is read as steps."""
+        prev = self.q_prev[i]; self.q_prev[i] = v
+        if 12 <= v <= 116: self.q_abs = True
+        if not self.q_abs:
+            self.q_rep[i] = self.q_rep[i] + 1 if v == prev else 0
+            if self.q_rep[i] >= 3 and (v <= 7 or v >= 121): self.q_rel = True
+            if self.q_rel: return v if v < 64 else v - 128
+        if prev is None: return 0
+        if v == prev:
+            return 1 if v == 127 else (-1 if v == 0 else 0)
+        return v - prev
 
     def button(self, name, down):
         c, e = self.ctl, self.e

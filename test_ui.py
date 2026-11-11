@@ -1956,3 +1956,12 @@ cs.usb_drives = lambda: []; _SETP.LOG = "/tmp/t7set/logs/monolith.log"; _d = _SE
 ok("SETTINGS: SAVE LOG TO USB (no USB drive: into logs/)", os.path.exists(_d) and "Monolith" in open(_d).read())
 cs.set_mode("SETTINGS"); cs.soft(3); ok("SETTINGS: F4 BACK", cs.mode != "SETTINGS")
 print("done; touch regions on last screen:", len(c.hits))
+
+# --- the Studio's Q-links send the knob's position (0-127): the change is the move, gradual, never min <-> max jumps
+import studio as _st
+_s = _st.Studio.__new__(_st.Studio); _s.q_prev = [None] * 4; _s.q_abs = False; _s.q_rel = False; _s.q_rep = [0] * 4
+_mv = [_s.q_steps(0, v) for v in (40, 45, 50, 66, 70, 90)]
+ok("Studio Q-link: turning up past half way keeps going up, gradually", _mv == [0, 5, 5, 16, 4, 20])
+ok("Studio Q-link: at the knob's end it keeps stepping", [_s.q_steps(0, v) for v in (127, 127)] == [37, 1])
+_s = _st.Studio.__new__(_st.Studio); _s.q_prev = [None] * 4; _s.q_abs = False; _s.q_rel = False; _s.q_rep = [0] * 4
+ok("Studio Q-link: a knob that sends steps (1 / 127) is read as steps", [_s.q_steps(0, v) for v in (1, 1, 1, 1, 127)][-2:] == [1, -1])
