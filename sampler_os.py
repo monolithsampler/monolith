@@ -52,9 +52,7 @@ class Framebuffer:
         if int(open(base + "/bits_per_pixel").read()) == 16: self._try_32()
         self.bpp = int(open(base + "/bits_per_pixel").read())
         self.stride = int(open(base + "/stride").read())
-        if self.bpp == 16:
-            print("screen: the framebuffer is 16-bit, so greys are dithered. For true colour, run once:  "
-                  "sudo python3 tools/screen32.py  (then reboot)")
+
         self.box = fit_box(self.w, self.h, fit)
         if self.w > 1920:
             print(f"warning: the screen is {self.w} x {self.h}: every frame is slow at that size and the audio may crackle. "
@@ -145,13 +143,8 @@ class Framebuffer:
 
     def _px(self, img, row0=0):
         if self.bpp == 32: return np.frombuffer(img.tobytes("raw", "BGRX"), np.uint8).reshape(img.size[1], img.size[0] * 4)
-        # 16-bit: green has one bit more than red and blue, so a plain cut tints greys pink / green in bands. All three
-        # are cut to the same 32 steps (green's extra bit copied), so greys stay grey. (32-bit, tools/screen32.py, is
-        # the real fix; this costs no more than the plain conversion did.)
-        q = np.asarray(img) >> 3
-        q16 = q.astype(np.uint16)
-        g = q16[..., 1]
-        v = (q16[..., 0] << 11) | (g << 6) | ((g >> 4) << 5) | q16[..., 2]
+        a = np.asarray(img)
+        v = ((a[..., 0].astype(np.uint16) & 0xF8) << 8) | ((a[..., 1].astype(np.uint16) & 0xFC) << 3) | (a[..., 2] >> 3)
         return v.astype("<u2").view(np.uint8).reshape(img.size[1], img.size[0] * 2)
 
     def _pointer_patch(self, img, mouse):
