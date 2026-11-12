@@ -11,7 +11,7 @@ attach to a bug report).
 
 **Quick start** (on Raspberry Pi OS, 64-bit):
 ```
-git clone https://github.com/<you>/monolith.git ~/monolith-studio
+git clone https://github.com/monolithsampler/monolith.git ~/monolith-studio
 cd ~/monolith-studio
 bash setup.sh
 bash start.sh

@@ -38,7 +38,7 @@ The first public release of Monolith, a sampler OS for the Raspberry Pi 5.
 
 ## Install
 ```
-git clone https://github.com/<you>/monolith.git ~/monolith-studio
+git clone https://github.com/monolithsampler/monolith.git ~/monolith-studio
 cd ~/monolith-studio
 bash setup.sh
 bash start.sh
