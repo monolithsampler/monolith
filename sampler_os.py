@@ -118,20 +118,23 @@ class Framebuffer:
             self.clean = np.zeros((h, w * b), np.uint8)
         ptr = self._pointer_patch(img, mouse) if self.mem is not False else None   # drawn into its strip: no flicker
         changed = []
-        for r0 in range(0, h, self.STRIP):                        # convert strip by strip (the audio gets turns between)
+        if getattr(self, "_raw", None) is None or len(self._raw) != (h + self.STRIP - 1) // self.STRIP: self._raw = [None] * ((h + self.STRIP - 1) // self.STRIP)
+        for k, r0 in enumerate(range(0, h, self.STRIP)):          # strip by strip (the audio gets turns between)
             r1 = min(h, r0 + self.STRIP)
-            px = self._px(img.crop((0, r0, w, r1)), r0)
-            if getattr(self, "_shown", False) and np.array_equal(px, self.clean[r0:r1]) and ptr is None and not self._pp: continue
-            self.clean[r0:r1] = px; changed.append((r0, r1))
+            part = img.crop((0, r0, w, r1))
+            raw = part.tobytes()
+            pp_hit = self._pp is not None if hasattr(self, "_pp") else False
+            if raw == self._raw[k] and ptr is None and not pp_hit: continue      # unchanged: no conversion, no copy
+            self._raw[k] = raw
+            self.clean[r0:r1] = self._px(part, r0); changed.append((r0, r1))
         if self.mem is not False and changed:
-            self._vsync()                                        # copy just after the screen refreshes: no torn digits
             for r0, r1 in changed:                               # (memory copies only: quick)
                 self.mem[y + r0:y + r1, x * b:(x + w) * b] = self.clean[r0:r1]
                 if ptr is not None:
                     (px0, py0), pp = ptr
                     a0, a1 = max(r0, py0), min(r1, py0 + pp.shape[0])
                     if a1 > a0: self.mem[y + a0:y + a1, (x + px0) * b:(x + px0) * b + pp.shape[1]] = pp[a0 - py0:a1 - py0]
-        self._shown = True
+
         self.clean_img = img                                      # the frame without the pointer: pointer() redraws over it
         self._pp = ptr[0] if ptr is not None else None
         if self.mem is False:
@@ -140,25 +143,16 @@ class Framebuffer:
             self.f.seek(0); self.f.write(self._buf.tobytes())
 
 
-    def _vsync(self):
-        import fcntl, struct
-        if getattr(self, "_novsync", False): return
-        try: fcntl.ioctl(self.f, 0x40044620, struct.pack("I", 0))   # FBIO_WAITFORVSYNC
-        except Exception: self._novsync = True
-
-    BAYER = ((np.array([[0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]], np.int16) - 8) // 2).astype(np.int16)
-
     def _px(self, img, row0=0):
         if self.bpp == 32: return np.frombuffer(img.tobytes("raw", "BGRX"), np.uint8).reshape(img.size[1], img.size[0] * 4)
-        # 16-bit: green has one bit more than red and blue, so a plain cut tints greys pink / green in bands. All three are
-        # cut to the same 32 steps (green's extra bit copied, greys stay grey) with an ordered dither, so gradients stay
-        # smooth instead of banding.
-        a = np.asarray(img).astype(np.int16)
-        hh, ww = a.shape[0], a.shape[1]
-        th = np.tile(self.BAYER, ((hh + 4) // 4 + 1, (ww + 3) // 4 + 1))[(row0 % 4):(row0 % 4) + hh, :ww]
-        q = np.clip((a + th[..., None] + 4) >> 3, 0, 31).astype(np.uint16)
-        v = (q[..., 0] << 11) | (((q[..., 1] << 1) | (q[..., 1] >> 4)) << 5) | q[..., 2]
-        return v.astype("<u2").view(np.uint8).reshape(hh, ww * 2)
+        # 16-bit: green has one bit more than red and blue, so a plain cut tints greys pink / green in bands. All three
+        # are cut to the same 32 steps (green's extra bit copied), so greys stay grey. (32-bit, tools/screen32.py, is
+        # the real fix; this costs no more than the plain conversion did.)
+        q = np.asarray(img) >> 3
+        q16 = q.astype(np.uint16)
+        g = q16[..., 1]
+        v = (q16[..., 0] << 11) | (g << 6) | ((g >> 4) << 5) | q16[..., 2]
+        return v.astype("<u2").view(np.uint8).reshape(img.size[1], img.size[0] * 2)
 
     def _pointer_patch(self, img, mouse):
         """((x, y), pixels) of the pointer drawn over this frame, or None when it is hidden"""
