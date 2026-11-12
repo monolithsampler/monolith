@@ -335,9 +335,9 @@ class Renderer:
         lvl = getattr(e, "msg_level", "info")
         hold = (2.2 if lvl == "warn" else 1.6) + max(0, len(e.msg) - 13) / 9.0 + 0.6   # long ones scroll, so they stay longer
         if e.msg and lvl in ("info", "warn") and now - e.msg_time < hold:      # status: a dot-matrix line in the glass, then back
-            self.status_line(e.msg, x0 + 20, y0 + 22.5, x1 - 66, now - e.msg_time, (255, 190, 90) if lvl == "warn" else (233, 245, 236))
+            self.status_line(e.msg, x0 + 20, y0 + 22.5, x1 - 78, now - e.msg_time, (255, 190, 90) if lvl == "warn" else (233, 245, 236))   # stops short of the disk icon
         else:
-            self.vt(x0 + 20, y0 + 22, pos, 19, (233, 245, 236) if e.pos >= 0 else YEL, "lm", maxw=x1 - 66 - (x0 + 20))
+            self.vt(x0 + 20, y0 + 22, pos, 19, (233, 245, 236) if e.pos >= 0 else YEL, "lm", maxw=x1 - 78 - (x0 + 20))
         if lvl == "save" and now - e.msg_time < 1.6:                           # saved: a disk icon blinks twice
             if int((now - e.msg_time) * 5) % 2 == 0: self.disk_icon(x1 - 70, y0 + 20, (233, 245, 236))
         elif e.unsaved(): self.disk_icon(x1 - 70, y0 + 20, (255, 170, 60))   # unsaved changes: an amber disk until it is saved

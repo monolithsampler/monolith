@@ -118,7 +118,7 @@ def mouse_thread(ctl, speed=1.0):
                     dev = d; break
             if dev is None:
                 time.sleep(3); continue
-            ctl.e.say("mouse: " + dev.name[:28])
+            print("mouse: " + dev.name)                           # (the log only: not worth a message on the counter)
             m.seen = time.time()
             for ev in dev.read_loop():
                 m.event(ev.type, ev.code, ev.value)
