@@ -9,7 +9,13 @@ The first public release of Monolith, a sampler OS for the Raspberry Pi 5.
   by transient, equal division or beat, or you can cut by hand. Each slice's start and end can be trimmed on its own,
   and CONVERT turns the slices into a new program on an empty track, ready to record. Nothing is ever cut from the
   original sample.
-- **WARP:** pads follow the sequence tempo.
+- **GRID editing:** DRAW, SELECT (drag a box around notes) and ERASE tools; move, nudge, lengthen and set velocity on
+  the selection from the screen or the Q-links; mute and solo each pad's row.
+- **MAIN works like an MPC:** the arrows put a cursor on SEQUENCE, BARS, TRACK, PROGRAM, SWING, Q and BPM; the wheel
+  changes it. The MPC Studio's own screen shows the same fields.
+- **PROG pages drawn as a panel:** knobs, LED keys, display windows. SAMPLE is a wave view with a beat ruler, START /
+  END flags and the warp controls (sample BPM with x2 / /2 / AUTO, stretch).
+- **WARP:** pads follow the sequence tempo, pitch independent of speed.
 - **Five machine voicings** next to the MODERN engine: MPC60, MPC3000, MPC2000XL, SP-1200 and ASR-10. The ASR-10's
   own effects need your own ROM files.
 - **A console mixer** with channel EQ, tape echo, valve drive, filter, crush and bus compression. VST3 instruments and

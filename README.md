@@ -18,6 +18,12 @@ bash start.sh
 ```
 `setup.sh` installs the packages and builds the audio engine; section 8 has the details.
 
+| | |
+|---|---|
+| ![MAIN](docs/screenshots/main.png) | ![GRID](docs/screenshots/grid.png) |
+| ![CHOP](docs/screenshots/chop.png) | ![PROG wave view](docs/screenshots/prog_wave.png) |
+| ![MIXER](docs/screenshots/mixer.png) | ![Track setup](docs/screenshots/track.png) |
+
 **Machine badges:** each machine's MAIN panel can show a badge image. None are included here, because the original
 logos belong to their makers. Without them, the machine's name is shown instead. To use your own images, put PNGs in
 `badges/` (see `badges/README.md`).
@@ -75,7 +81,7 @@ affiliated with or endorsed by them, and it includes none of their firmware, ROM
 - **Projects:** as many as you like (new, open, save as), the last one opens at start-up; sequences, tracks, programs and samples can be renamed.
 - **Sequencer:** automation lanes on GRID (track level / pan, program insert parameters), record / overdub, count-in, metronome, record quantize, swing, undo / redo (notes, automation, bars), erase while playing, note repeat, mute / solo, song mode.
 - **Edit tools:** copy / insert / delete bars, time signature, quantize with strength and swing, nudge, copy sequence / track / pad.
-- **Track types:** DRUM (a program's pads), KEYGROUP (one pad played chromatically), PLUGIN (a VST3 synth), MIDI (to external gear). Note tracks get a piano roll.
+- **Track types:** DRUM (a program's pads), KEYS (one pad played up and down the keys), PLUGIN (a VST3 synth), MIDI (to external gear). Note tracks get a piano roll.
 - **Non-destructive chop** by equal slices, beats, transients or by hand; chops stay linked to their markers.
 - **WARP:** pads follow the sequence tempo while playing, even mid-note (Signalsmith Stretch).
 - **SP-1200-style lo-fi:** 26.04 kHz / 12-bit per pad.
@@ -447,7 +453,7 @@ controller (e.g. an Akai MPK249) are enough. Run `python3 sampler_os.py --no-ard
 | SAMPLE EDIT | CHOP (SHIFT: SAMPLE RECORD) | DATA - / + and the wheel | jog (SHIFT: fine steps) |
 | PROJECT | PROJECTS | BANK A-D | pad bank |
 | SEQ | GRID, all tracks | 16 LEVEL, NEXT SEQ, TRACK MUTE | pad modes (press again: normal); SHIFT + TRACK MUTE: the MUTE page |
-| PROG | PROG (front panel) | FULL LEVEL | every hit at full velocity |
+| PROG | PROG (the program's pages) | FULL LEVEL | every hit at full velocity |
 | SAMPLE | PROG's sample list | PAD ASSIGN | PAD MODES page |
 | SONG | SONG | Q-LINK TRIGGER, SCROLL | Q-link mode |
 | BROWSER | BROWSE | NUMERIC | machine picker (no number entry yet) |
@@ -479,7 +485,7 @@ Holding the Studio's SHIFT shows its own list. SHIFT + F1-F4 does not change ban
 
 **Track types** (the type button next to the track name on GRID, or on each ALL TRACKS row)
 - DRUM: a program's 64 pads.
-- KEYGROUP: one pad played up and down the keyboard; set which key plays it at its own pitch.
+- KEYS: one pad played up and down the keyboard; set which key plays it at its own pitch.
 - PLUGIN: a VST3 synth (Dexed and Surge XT can be built for the Pi). PLUG-IN WINDOW shows its own interface with `--x11`.
 - MIDI: notes to external gear on a channel.
 
@@ -597,7 +603,7 @@ Note tracks switch freely between each other. A drum track with hits must be cle
   - give any track a MIDI out channel;
   - CLOCK: OFF, SEND (24 clocks a beat, start / continue / stop and song position, so drum machines and DAWs follow) or FOLLOW (an outside clock sets the tempo and starts and stops it; it follows the tempo, it does not lock to the other machine's exact beat);
   - BEND: the pitch bend range (2, 7, 12 or 24 semitones).
-- **Wheels:** pitch bend bends notes held on the keys (KEYGROUP tracks) and goes to a PLUGIN track's synth (if the plug-in maps it) and to the track's MIDI channel. The mod wheel (CC 1) and aftertouch open the filter of pads that have one, and go to the synth and the MIDI channel too.
+- **Wheels:** pitch bend bends notes held on the keys (KEYS tracks) and goes to a PLUGIN track's synth (if the plug-in maps it) and to the track's MIDI channel. The mod wheel (CC 1) and aftertouch open the filter of pads that have one, and go to the synth and the MIDI channel too.
 - **Without learning:** MMC and MIDI Start / Stop work.
 - **The MIDI setup** (learned controls, clock, bend) belongs to the machine, not a project: it is in `midi.json` next to the software.
 
@@ -638,7 +644,7 @@ automatically, because it is too fine to print. Keep the logo's finest lines and
 - **PROG as an MPC program edit:** SLICE (a slice's edge moves its marker and the next slice follows; SLICE: PAD frees the pad), the first slice's start, Q-links, ZOOM, FINE in cents, STRETCH, and notes that are sounding following edits (trims, tune, WARP renders).
 - **Engine and sequencer:** timing, record / overdub / undo, swing, mute / solo, ONE SHOT / HOLD, choke, song mode, 8-output routing.
 - **Chop:** the source is never changed, linked pads follow their markers, and projects reload.
-- **Track types:** DRUM, KEYGROUP, PLUGIN with a real VST3 synth (Dexed) and MIDI out.
+- **Track types:** DRUM, KEYS, PLUGIN with a real VST3 synth (Dexed) and MIDI out.
 - **WARP:** exact lengths, tempo changes mid-note without clicks, pitch kept.
 - **FLATTEN, TRACK OUT and program inserts.**
 - **Pad modes and Q-link modes.**
