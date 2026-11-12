@@ -139,9 +139,9 @@ def chain_bar(r):
     r.well((10, 49, 796, 92), 7, (20, 22, 26), 6)
     chain = c.fx_chain()
     for k, (t, label) in enumerate(chain):
-        x0 = 18.75 + k * 127.5; x1 = x0 + 110.6
+        x0 = 16 + k * 121.5; x1 = x0 + 105.5
         if k:                                                            # the patch link between slots
-            d.line([x0 - 16.9, 71, x0, 71], fill=(70, 72, 78), width=2)
+            d.line([x0 - 16, 71, x0, 71], fill=(70, 72, 78), width=2)
             d.rounded_rectangle([x0 - 10.5, 67.5, x0 - 6.5, 74.5], 1, fill=(150, 152, 158))
         sel = t == c.fx_target
         r.keycap((x0, 55, x1, 87), "up", 5)
@@ -154,9 +154,13 @@ def chain_bar(r):
             nm = eff.name if eff is not None else (f"{pad.src.name[:10]} (pad)" if pad.src is not None else "empty pad")
         else: nm = eff.name if eff is not None else "empty"
         r.t(x0 + 7, 75, nm[:16], 10.5, True, (240, 242, 246) if eff is not None or t < 64 else (110, 114, 124), "lm")
-        if eff is not None or t >= 64: r.ledp(x1 - 7, 62, 3.8, eff is not None, YEL if byp else GREEN)
+        if eff is not None or t >= 64: r.ledp(x1 - 10, 63, 3.2, eff is not None, YEL if byp else GREEN)
         r.hit((x0, 52, x1, 90), down=lambda *_, t=t: c.fx_set_target(t) if c.fx_target != t else setattr(c, "fx_browse", not c.fx_browse))
-    lab(r, 790, 71, f"CPU {min(e.cpu, 9.99) * 100:.0f}%", 4.6, (120, 124, 134), "rm", "s", 0.1)
+    # the audio load, in its own little window at the end of the chain
+    r.glassbox((744, 56, 791, 86), 5)
+    lab(r, 767.5, 64, "CPU", 4.0, (120, 124, 134), "mm", "s", 0.14)
+    cpu = min(e.cpu, 9.99) * 100
+    r.vt(767.5, 76, f"{cpu:.0f}%", 11.5, (255, 170, 60) if cpu > 70 else (233, 245, 236), "mm")
 
 
 def _target(c, t):

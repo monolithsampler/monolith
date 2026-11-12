@@ -419,8 +419,9 @@ class Renderer:
         cy = (y0 + y1) / 2.0
         for i, lab in enumerate(c.soft_labels()):
             x0, x1 = 8 + i * 198, 8 + i * 198 + 190
-            if not lab:
-                self.well((x0, y0, x1, y1), 8, (30, 32, 37), 5); continue
+            if not lab:                                                    # nothing on this key here: just its outline, no panel
+                d.rounded_rectangle([x0 + 1, y0 + 1, x1 - 1, y1 - 1], 8, outline=(40, 43, 49), width=1)
+                self.lab(x0 + 8, y0 + 5, f"F{i + 1}", 5.6, (70, 74, 84), "la", "s", 0.1); continue
             if isinstance(lab, tuple) and len(lab) == 2 and isinstance(lab[1], bool): lab = T(lab[0], lab[1])     # old (text, on)
             kind = "A" if isinstance(lab, str) else lab[0]
             hot = kind == "H" or (kind == "T" and lab[2])
@@ -461,8 +462,7 @@ class Renderer:
             if label == "-":                                              # this knob does nothing on this screen
                 sp, off = skin.knob(kd, 0.0, (70, 74, 90))
                 self.img.paste(sp, (self.P(cx) - kd // 2 - off, self.P(cy) - kd // 2 - off), sp)
-                self.lab(x + 80, Q_Y + 24, f"Q{i + 1}", 6.2, (80, 84, 96), "la", "s", 0.14)
-                self.t(x + 80, Q_Y + 34, "not used here", 12, False, (80, 84, 96))
+                self.lab(x + 80, Q_Y + 41, f"Q{i + 1}  NOT USED", 6.2, (80, 84, 96), "lm", "s", 0.14)   # one line, level with the knob
                 continue
             f = clamp(get(), 0.0, 1.0)
             sp, off = skin.knob(kd, f, ORANGE)
@@ -1118,8 +1118,11 @@ class Renderer:
                 self.lab(11, y + lane_h // 2 - 6, f"{BANKS[e.bank]}{lane + 1:02d}", 5.4, ORANGE if on else skin.LAB, "lm", "s", 0.1)
                 self.t(11, y + lane_h // 2 + 6, lab[:8], 9, True, tc, "lm")
             else:
-                self.lab(10, y + lane_h // 2, f"{BANKS[e.bank]}{lane + 1:02d}", 4.8, ORANGE if on else skin.LAB, "lm", "s", 0.04)
-                self.t(28, y + lane_h // 2, lab[:6], 7.5, True, tc, "lm")
+                num = f"{BANKS[e.bank]}{lane + 1:02d}"
+                self.lab(9, y + lane_h // 2, num, 4.4, ORANGE if on else skin.LAB, "lm", "s", 0.02)
+                nw = skin.tracked(num, self.P(4.4), "s", (0, 0, 0), 0.02).width / self.scale     # the name starts after the number
+                if not (pad.src is not None and pad.link is None and pad.src.name.lower() == f"pad{lane + 1:02d}"):
+                    self.t(9 + nw + 3, y + lane_h // 2, lab[:max(2, int((62 - 12 - nw) / 5.2))], 7.5, True, tc, "lm")
             self.hit((4, y, 64, y + lane_h), down=lambda *_, lane=lane: (setattr(c, "g_lane", lane), setattr(e, "sel", lane),
                                                                      e.trigger(e.prog.pads[e.bank * 16 + lane], 100)))
             mh = min(lane_h - 4, 14)

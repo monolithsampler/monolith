@@ -81,31 +81,36 @@ def sp_frame(e, c, scr):
     a[5:5 + h, 6:6 + w] = img
     box(a, 2, 1, 6 + w + 3, 5 + h + 3, 170)
     x0 = 6 + w + 14
-    text(a, x0, 3, "E-mu Systems", 1, 170)
-    text(a, x0, 15, "SP 1200", 2, 255)
-    text(a, x0, 36, f"12 BIT  BANK {'ABCD'[e.bank]}", 1, 170)
-    a[48, :] = 85
-    text(a, 4, 52, "TUNE", 1, 170)
-    text(a, 4, 62, "1-8", 1, 85)
+    # the name plate: the real E-mu and SP 1200 badges from badges/ (as the ensoniq screen does); text if they are missing
+    emu, name = badge_logo("SP-1200_top", 10), badge_logo("SP-1200", 18)
+    if emu is not None: a[3:3 + emu.shape[0], x0:x0 + min(emu.shape[1], W - x0 - 2)] = emu[:, :W - x0 - 2]
+    else: text(a, x0, 3, "E-mu Systems", 1, 170)
+    if name is not None: a[15:15 + name.shape[0], x0:x0 + min(name.shape[1], W - x0 - 2)] = name[:, :W - x0 - 2]
+    else: text(a, x0, 15, "SP 1200", 2, 255)
+    text(a, x0, 37, f"12 BIT  BANK {'ABCD'[e.bank]}", 1, 170)
+    # (the Studio's glass shows only the two brightest greys: everything here is drawn at 170 or 255)
+    a[48, :] = 170
+    text(a, 4, 52, "TUNE", 1, 255)
     base = e.bank * 16 + (8 if e.sel >= 8 else 0)
+    text(a, 4, 64, f"{base % 16 + 1}-{base % 16 + 8}", 1, 170)
     for i in range(8):
         pad = e.prog.pads[base + i]
         cx = 54 + i * 38
         sel = base + i == e.pad_idx
-        a[53:91, cx] = 85; a[53:91, cx + 1] = 85                          # the slot
-        for t in range(55, 91, 6): a[t, cx - 4:cx - 2] = 85                 # its scale
+        a[54:88, cx] = 170                                                   # the slot: one line
+        for t in (54, 71, 87): a[t, cx - 3:cx] = 170                          # top, centre, bottom marks
         f = (pad.tune - SP_TUNE[0]) / float(SP_TUNE[1] - SP_TUNE[0]) if not pad.empty else 0.5
-        cy = int(89 - 34 * max(0.0, min(1.0, f)))
-        a[cy - 2:cy + 3, cx - 6:cx + 8] = 255 if sel else 170              # the cap
-        a[cy, cx - 6:cx + 8] = 0
+        cy = int(86 - 30 * max(0.0, min(1.0, f)))
+        a[cy - 2:cy + 3, cx - 5:cx + 6] = 255                                # the cap
+        a[cy, cx - 4:cx + 5] = 0
+        # the hit meter: a framed strip beside the slider, lit from the bottom while the pad sounds
+        a[54:88, cx + 9] = 170 if not pad.empty else 0
         m = min(1.0, pad.meter * 1.6) if not pad.empty else 0.0
-        n = int(m * 9)
-        for k in range(9):                                                # the hit meter beside it
-            yy = 89 - k * 4
-            a[yy - 2:yy, cx + 12:cx + 16] = 255 if k < n else (85 if not pad.empty else 0)
+        top = int(87 - 32 * m)
+        if m > 0.03: a[top:87, cx + 10:cx + 13] = 255
         lbl = str(i + 1)
-        if sel: a[91:96, cx - 3:cx + 5] = 255; text(a, cx - 2, 87, lbl, 1, 0)
-        else: text(a, cx - 2, 87, lbl, 1, 170)
+        if sel: a[88:96, cx - 4:cx + 5] = 255; text(a, cx - 2, 88, lbl, 1, 0)
+        else: text(a, cx - 2, 88, lbl, 1, 255)
     return Image.fromarray(a)
 
 
@@ -144,27 +149,32 @@ def asr_keys_frame(e, c):
     big = np.kron(arr, np.ones((2, 2), np.uint8))                          # 2 dots a dot: 22 characters fit
     ox = (W - big.shape[1]) // 2
     a[14:14 + big.shape[0], ox:ox + big.shape[1]] = np.where(big > 0, 255, 0)
-    a[36, :] = 85
+    a[36, :] = 170
     logo = badge_logo("ASR-10_top", 18)
     if logo is not None: a[44:44 + logo.shape[0], 2:2 + logo.shape[1]] = np.maximum(a[44:44 + logo.shape[0], 2:2 + logo.shape[1]], logo)
     else: text(a, 2, 46, "ensoniq", 2, 255)
     text(a, 2, 70, "ADVANCED SAMPLING", 1, 170); text(a, 2, 81, "RECORDER", 1, 170)
+    a[39:94, 126] = 170                                                     # a rule between the name plate and the knobs
+    # this page's knobs as a table: Q-number and name in one column, the value lined up in the next
+    rows = []
     for i, (lab, get, _, fmt) in enumerate(c.qlinks()[:4]):
-        if lab == "-": continue
-        y = 41 + i * 13
         try: v = str(fmt())
         except Exception: v = ""
-        l_ = f"Q{i + 1} {lab.upper()}"[:14]
-        room = max(4, (332 - 136 - tw(l_) - 6) // 6)                        # the value gets what the label leaves
-        v = v.replace(" ", "")[:room] if len(v) > room else v
-        text(a, 136, y, l_, 1, 170); text(a, 332 - tw(v), y, v, 1, 255)
-    for ch, lvl in enumerate((getattr(e, "meter_l", 0.0), getattr(e, "meter_r", 0.0))):   # L / R output, upright
-        x_ = 340 + ch * 10
-        n_ = int(min(1.0, max(0.0, lvl)) ** 0.5 * 11)
-        for k_ in range(11):
-            y_ = 84 - k_ * 4
-            a[y_:y_ + 3, x_:x_ + 7] = 255 if k_ < n_ else 85
-        text(a, x_ + 1, 88, "LR"[ch], 1, 170)
+        rows.append((f"Q{i + 1}", lab.upper() if lab != "-" else "", v if lab != "-" else ""))
+    lw = max([tw(r_[1]) for r_ in rows] + [0])
+    vx = min(132 + 18 + lw + 8, 250)
+    for i, (qn, lab, v) in enumerate(rows):
+        y = 41 + i * 13
+        text(a, 132, y, qn, 1, 170 if lab else 0)
+        text(a, 150, y, lab[:max(1, (vx - 156) // 6)], 1, 255)
+        text(a, vx, y, v[:max(1, (326 - vx) // 6)], 1, 255)
+    # the L / R output meters: framed, lit from the bottom
+    for ch, lvl in enumerate((getattr(e, "meter_l", 0.0), getattr(e, "meter_r", 0.0))):
+        x_ = 333 + ch * 13
+        box(a, x_, 40, x_ + 9, 86, 170)
+        h_ = int(min(1.0, max(0.0, lvl)) ** 0.5 * 44)
+        if h_ > 0: a[85 - h_ + 1:86, x_ + 2:x_ + 8] = 255
+        text(a, x_ + 2, 87, "LR"[ch], 1, 255)
     return Image.fromarray(a)
 
 
@@ -317,16 +327,25 @@ def frame(c):
 
 
 class Screen:
-    """keeps the Studio's screen in step: renders a frame, sends the rows that changed"""
+    """keeps the Studio's screen in step: renders a frame, sends the rows that changed. A row only counts as shown once
+    its message went out (a USB write that failed or timed out is sent again next time), a new page or machine sends the
+    whole screen, and one row is refreshed every update anyway, so nothing stale can stay on the glass (about 8 s a lap)."""
     def __init__(self):
         self.rows = [None] * H
+        self.key, self.lap = None, 0
 
     def reset(self): self.rows = [None] * H
 
     def update(self, c, send):
+        key = (c.mode, getattr(c.e, "machine", None), getattr(c, "prog_tab", None), getattr(c, "mpick", None),
+               getattr(c.e, "asr_page", None) if hasattr(c.e, "asr_page") else None)
+        if key != self.key: self.key = key; self.reset()
         rows = pack(frame(c))
+        self.lap = (self.lap + 1) % H
         n = 0
         for y, r in enumerate(rows):
-            if r != self.rows[y]:
-                send(row_msg(y, r)); self.rows[y] = r; n += 1
+            if r != self.rows[y] or y == self.lap:
+                ok = send(row_msg(y, r))
+                if ok is not False: self.rows[y] = r; n += 1
+                else: self.rows[y] = None
         return n

@@ -104,10 +104,11 @@ class Studio:
 
     def send_screen(self, msg):
         """the screen listens on USB-MIDI port 0 (the controls and lights are on port 1)"""
-        if self.dev is None: return
+        if self.dev is None: return False
         try:
             with self.lock: self.dev.write(EP_OUT, packets(msg, 0), timeout=500)
-        except Exception: pass
+            return True
+        except Exception: return False                          # not shown: the screen sends this row again next time
 
     def screen_loop(self):
         """the Studio's own screen, about 12 times a second; only changed rows go over USB"""
