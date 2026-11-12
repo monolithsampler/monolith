@@ -967,8 +967,10 @@ class Renderer:
         if c.track_setup is not None: self.track_setup_panel()
 
     def track_setup_panel(self):
-        """SEQ: what a track plays - DRUM (pads of a program), KEYGROUP (one pad, chromatic), PLUGIN (VST3 synth), MIDI (external)"""
-        import fx as fxlib, os
+        """a track's setup, read top to bottom: its name; what it PLAYS (DRUM pads of a program / KEYS: one pad played as
+        notes / a PLUGIN synth / MIDI out to other gear: tapping one switches the track to it); the details of that
+        choice (which program, which pad, which synth, which channel); then the track's own LEVEL, PAN, MUTE, SOLO"""
+        import fx as fxlib
         d, e, c = self.d, self.e, self.c
         k = c.track_setup
         tr = e.seq.tracks[k]
@@ -976,56 +978,124 @@ class Renderer:
         self.hit((x0, y0, x1, y1), down=lambda *_: None)                 # nothing underneath reacts
         self.plate((x0, y0, x1, y1), 10)
         d.rounded_rectangle([x0, y0, x1, y1], 10, outline=mix((49, 52, 59), ORANGE, 0.6), width=1)
+        kcol = {"drum": TEXT, "keys": CYAN, "plugin": (200, 140, 255), "midi": YEL}
+        # --- name
         self.lab(x0 + 14, y0 + 12, f"TRACK {k + 1:02d}", 6.0, ORANGE, "lm", "s", 0.16)
-        self.t(x0 + 14, y0 + 26, f"{tr.name}  -  what does it play?", 13, True, (240, 242, 246), "lm")
-        self.btn((x1 - 86, y0 + 6, x1 - 8, y0 + 32), "CLOSE", lambda: setattr(c, "track_setup", None), 11, grow=4)
+        self.t(x0 + 14, y0 + 28, tr.name, 14, True, (240, 242, 246), "lm")
+        nw = d.textlength(tr.name, font=font(14, True))
+        self.btn((x0 + 22 + nw, y0 + 18, x0 + 92 + nw, y0 + 38), "RENAME", lambda: (setattr(e, "cur_track", k), c.rename_track()), 9)
+        self.btn((x1 - 86, y0 + 8, x1 - 8, y0 + 34), "CLOSE", lambda: setattr(c, "track_setup", None), 11, grow=4)
+        # --- PLAYS: four keys, the one in use lit; a tap switches the track
+        ya, yb = y0 + 46, y0 + 86
+        self.lab(x0 + 14, (ya + yb) / 2, "PLAYS", 5.4, skin.LAB, "lm", "s", 0.14)
+        sub = {"drum": "pads of a program", "keys": "one pad, as notes", "plugin": "a VST3 synth", "midi": "other gear"}
+        name = {"drum": "DRUM", "keys": "KEYS", "plugin": "PLUGIN", "midi": "MIDI OUT"}
+        kw = (x1 - 12 - (x0 + 66)) / 4.0
         tab = getattr(c, "ts_tab", None) or tr.kind
-        info = {"drum": "the 16 pads x 4 banks of a drum program", "keys": "one pad, played up and down the keyboard",
-                "plugin": "a VST3 instrument (synth / sampler plug-in)", "midi": "notes to external gear on MIDI out"}
+
+        def pick(kind):
+            if kind == "plugin" and tr.kind != "plugin": c.ts_tab = "plugin"; return      # pick a synth below first
+            blocked = (tr.kind == "drum") != (kind == "drum") and tr.events
+            if blocked:
+                e.say("this track has " + ("pad hits" if tr.kind == "drum" else "notes") + ": use an empty track for " + name[kind], "warn"); return
+            if e.set_track_kind(tr, kind): c.ts_tab = None; e.say(f"track {k + 1} plays {name[kind]}")
         for i, kind in enumerate(("drum", "keys", "plugin", "midi")):
-            bx = x0 + 14 + i * 132
-            self.btn((bx, y0 + 40, bx + 124, y0 + 76), KIND_NAMES[kind], lambda kind=kind: setattr(c, "ts_tab", kind), 12,
-                     on=(tab == kind), color={"drum": TEXT, "keys": CYAN, "plugin": (200, 140, 255), "midi": YEL}[kind])
-        self.t(x0 + 14, y0 + 92, info[tab] + ("   (current)" if tab == tr.kind else ""), 11, False, DIM, "lm")
-        by = y0 + 110
-        def setk(kind, plugin=None):
-            if e.set_track_kind(tr, kind, plugin): c.ts_tab = None; e.say(f"track {k + 1}: {KIND_NAMES[kind]}")
+            bx = x0 + 66 + i * kw
+            on = tab == kind
+            blocked = kind != tr.kind and (tr.kind == "drum") != (kind == "drum") and bool(tr.events)
+            self.keycap((bx + 2, ya, bx + kw - 2, yb), "lit" if on else "up", 6, kcol[kind] if kind != "drum" else ORANGE)
+            if on: self.ledp(bx + 12, ya + 10, 3.4, True, kcol[kind] if kind != "drum" else ORANGE)
+            tc = (110, 114, 124) if blocked else kcol[kind]
+            self.lab(bx + kw / 2, ya + 14, name[kind], 6.6, tc, "mm", "s", 0.1)
+            self.t(bx + kw / 2, ya + 29, "not on this track" if blocked else sub[kind], 9, False, (110, 114, 124) if blocked else (170, 176, 188), "mm")
+            self.hit((bx, ya - 2, bx + kw, yb + 2), down=lambda *_, kind=kind: pick(kind))
+        # --- the details of what it plays
+        sy0, sy1 = y0 + 96, y1 - 64
+        self.well((x0 + 10, sy0, x1 - 10, sy1), 7, (21, 22, 26), 5)
+
+        def program_cards(cy0, cy1, cols=4):
+            n = NPROG
+            rows = (n + cols - 1) // cols
+            cw, ch = (x1 - 24 - (x0 + 24)) / float(cols), (cy1 - cy0) / float(rows)
+            for p in range(n):
+                pr = e.programs[p]
+                used = sum(1 for q in pr.pads if not q.empty)
+                bx, by = x0 + 24 + (p % cols) * cw, cy0 + (p // cols) * ch
+                on = tr.prog == p
+                self.keycap((bx + 2, by + 2, bx + cw - 2, by + ch - 2), "lit" if on else "up", 5)
+                if cols > 4:                                         # compact: one line, number and name
+                    self.lab(bx + cw / 2, by + ch / 2, f"P{p + 1} " + (pr.name[:7] if used else "-"), 4.6,
+                             ORANGE if on else ((220, 224, 232) if used else (110, 114, 124)), "mm", "s", 0.04, maxw=cw - 8)
+                    self.hit((bx, by, bx + cw, by + ch), down=lambda *_, p=p: (setattr(tr, "prog", p), e.say(f"track {k + 1} plays P{p + 1} {e.programs[p].name}")))
+                    continue
+                self.lab(bx + 10, by + 11, f"P{p + 1}", 5.0, ORANGE if on else skin.LAB, "lm", "s", 0.1)
+                self.t(bx + 10, by + ch / 2 + 4, pr.name[:13] if used else "empty", 11, True,
+                       (244, 246, 249) if used else (110, 114, 124), "lm")
+                if used: self.t(bx + cw - 8, by + 11, f"{used} pad" + ("s" if used > 1 else ""), 9, False, (140, 146, 158), "rm")
+                self.hit((bx, by, bx + cw, by + ch), down=lambda *_, p=p: (setattr(tr, "prog", p), e.say(f"track {k + 1} plays P{p + 1} {e.programs[p].name}")))
+
         if tab == "drum":
-            self.t(x0 + 14, by + 16, "Program", 12, True, TEXT, "lm")
-            for p in range(NPROG):
-                bx = x0 + 100 + p * 54
-                self.btn((bx, by, bx + 48, by + 34), f"P{p + 1}", lambda p=p: (setk("drum"), setattr(tr, "prog", p)) if tr.kind == "drum" or not tr.events else setk("drum"),
-                         12, on=(tr.kind == "drum" and tr.prog == p))
+            self.lab(x0 + 24, sy0 + 12, "WHICH PROGRAM  (ITS PADS ARE THIS TRACK'S SOUNDS)", 4.8, skin.LAB, "lm", "s", 0.12)
+            program_cards(sy0 + 20, sy1 - 8)
         elif tab == "keys":
-            kp = e.prog.pads[tr.key_pad]
-            self.t(x0 + 14, by + 16, f"Plays pad {BANKS[tr.key_pad // 16]}{tr.key_pad % 16 + 1:02d}  {kp.src.name if kp.src else '(empty)'}", 12, True, TEXT, "lm")
-            self.btn((x0 + 330, by, x0 + 540, by + 34), f"USE SELECTED PAD {BANKS[e.bank]}{e.sel + 1:02d}",
-                     lambda: (setk("keys"), setattr(tr, "key_pad", e.pad_idx)), 11)
-            self.t(x0 + 14, by + 62, f"Original pitch on key {self.note_name(tr.root)}", 12, False, TEXT, "lm")
-            self.btn((x0 + 330, by + 46, x0 + 380, by + 78), "-", lambda: setattr(tr, "root", max(24, tr.root - 1)), 16)
-            self.btn((x0 + 386, by + 46, x0 + 436, by + 78), "+", lambda: setattr(tr, "root", min(96, tr.root + 1)), 16)
-            if tr.kind != "keys": self.btn((x0 + 14, by + 100, x0 + 214, by + 136), "MAKE IT KEYGROUP", lambda: setk("keys"), 12, color=CYAN)
+            self.lab(x0 + 24, sy0 + 12, "THE PAD IT PLAYS, UP AND DOWN THE KEYS", 4.8, skin.LAB, "lm", "s", 0.12)
+            pr = e.programs[tr.prog]
+            kp = pr.pads[tr.key_pad]
+            self.t(x0 + 24, sy0 + 34, f"P{tr.prog + 1} {pr.name}   pad {BANKS[tr.key_pad // 16]}{tr.key_pad % 16 + 1:02d}   "
+                                     f"{kp.src.name if kp.src else '(empty)'}", 12, True, TEXT, "lm")
+            self.btn((x1 - 200, sy0 + 22, x1 - 24, sy0 + 46), f"USE PAD {BANKS[e.bank]}{e.sel + 1:02d}",
+                     lambda: (setattr(tr, "key_pad", e.pad_idx), setattr(tr, "prog", e.track.prog) if False else None,
+                              e.say(f"track {k + 1} plays pad {BANKS[e.bank]}{e.sel + 1:02d} as notes")), 10)
+            self.lab(x0 + 24, sy0 + 66, "ITS OWN PITCH ON KEY", 4.8, skin.LAB, "lm", "s", 0.12)
+            self.btn((x0 + 170, sy0 + 56, x0 + 196, sy0 + 78), "-", lambda: setattr(tr, "root", max(24, tr.root - 1)), 14)
+            self.vt(x0 + 222, sy0 + 67, self.note_name(tr.root), 19, (255, 176, 102), "mm")
+            self.btn((x0 + 248, sy0 + 56, x0 + 274, sy0 + 78), "+", lambda: setattr(tr, "root", min(96, tr.root + 1)), 14)
+            self.lab(x0 + 24, sy0 + 96, "FROM PROGRAM", 4.8, skin.LAB, "lm", "s", 0.12)
+            program_cards(sy0 + 104, sy0 + 132, 8)
         elif tab == "plugin":
             insts = fxlib.discover_instruments()
+            self.lab(x0 + 24, sy0 + 12, "WHICH SYNTH  (VST3 INSTRUMENTS IN ~/.vst3 OR plugins/)", 4.8, skin.LAB, "lm", "s", 0.12)
             if not insts:
-                self.t(x0 + 14, by + 16, "no VST3 instruments found (put them in ~/.vst3 or plugins/; needs vst3host)", 11, False, YEL, "lm")
-            for i, (path, name) in enumerate(insts[:5]):
-                yy = by + i * 34
+                self.t(x0 + 24, sy0 + 40, "none found: put VST3 instruments in ~/.vst3 or plugins/ (needs vst3host)", 11, False, YEL, "lm")
+            for i, (path, nm) in enumerate(insts[:4]):
+                yy = sy0 + 22 + i * 28
                 cur = tr.kind == "plugin" and tr.plugin == path
-                self.btn((x0 + 14, yy, x0 + 340, yy + 30), name, lambda path=path: setk("plugin", path), 12, on=cur)
+
+                def setp(path=path):
+                    if tr.kind == "drum" and tr.events: e.say("this track has pad hits: use an empty track for PLUGIN", "warn"); return
+                    if e.set_track_kind(tr, "plugin", path): c.ts_tab = None; e.say(f"track {k + 1} plays {os.path.basename(path)}")
+                self.btn((x0 + 24, yy, x0 + 330, yy + 24), nm, setp, 11, on=cur)
             if tr.kind == "plugin" and tr.plugin:
-                self.btn((x0 + 360, by, x0 + 540, by + 40), "PLUG-IN WINDOW",
-                         lambda: c.toggle_editor(e.instrument(tr), f"TRACK {k + 1}"), 12, color=(200, 140, 255))
-                inst = e.instruments.get(id(tr))
-                self.t(x0 + 360, by + 58, f"{inst.n()} parameters" if inst else "", 10, False, DIM, "lm")
+                self.btn((x1 - 200, sy0 + 22, x1 - 24, sy0 + 50), "OPEN ITS WINDOW",
+                         lambda: c.toggle_editor(e.instrument(tr), f"TRACK {k + 1}"), 11, color=(200, 140, 255))
         else:
-            ch = tr.midi_ch or 1
-            self.t(x0 + 14, by + 16, f"MIDI out channel {ch}", 12, True, TEXT, "lm")
-            self.btn((x0 + 220, by, x0 + 270, by + 34), "-", lambda: setattr(tr, "midi_ch", max(1, (tr.midi_ch or 1) - 1)), 16)
-            self.btn((x0 + 276, by, x0 + 326, by + 34), "+", lambda: setattr(tr, "midi_ch", min(16, (tr.midi_ch or 1) + 1)), 16)
-            if tr.kind != "midi": self.btn((x0 + 14, by + 50, x0 + 214, by + 86), "MAKE IT MIDI", lambda: setk("midi"), 12, color=YEL)
-            self.t(x0 + 14, by + 110, "plays nothing inside the sampler: connect a synth to a USB MIDI port", 10, False, DIM, "lm")
-        self.t(x0 + 14, y1 - 16, "notes from KEYGROUP / PLUGIN / MIDI tracks can be swapped between them; DRUM <-> notes needs an empty track", 9, False, DIM, "lm")
+            self.lab(x0 + 24, sy0 + 12, "NOTES GO OUT OF THE USB MIDI PORT TO A SYNTH OR DRUM MACHINE", 4.8, skin.LAB, "lm", "s", 0.12)
+            self.lab(x0 + 24, sy0 + 44, "CHANNEL", 5.4, skin.LAB, "lm", "s", 0.14)
+            self.btn((x0 + 100, sy0 + 32, x0 + 126, sy0 + 56), "-", lambda: setattr(tr, "midi_ch", max(1, (tr.midi_ch or 1) - 1)), 14)
+            self.vt(x0 + 150, sy0 + 44, str(tr.midi_ch or 1), 19, (255, 176, 102), "mm")
+            self.btn((x0 + 174, sy0 + 32, x0 + 200, sy0 + 56), "+", lambda: setattr(tr, "midi_ch", min(16, (tr.midi_ch or 1) + 1)), 14)
+        # --- the track itself
+        ty = y1 - 34
+        self.lab(x0 + 14, ty, "TRACK", 5.4, skin.LAB, "lm", "s", 0.14)
+
+        def stepper(xa, label, val, dec, inc):
+            self.lab(xa, ty, label, 4.8, skin.LAB, "lm", "s", 0.12)
+            lw = skin.tracked(label, self.P(4.8), "s", (0, 0, 0), 0.12).width / self.scale
+            bx = xa + lw + 6
+            self.btn((bx, ty - 11, bx + 22, ty + 11), "-", dec, 13)
+            self.vt(bx + 46, ty, val, 19, (255, 176, 102), "mm")
+            self.btn((bx + 70, ty - 11, bx + 92, ty + 11), "+", inc, 13)
+        stepper(x0 + 66, "LEVEL", f"{tr.vol * 100:.0f}%", lambda: setattr(tr, "vol", round(max(0.0, tr.vol - 0.05), 2)),
+                lambda: setattr(tr, "vol", round(min(1.0, tr.vol + 0.05), 2)))
+        pan = "C" if abs(tr.pan) < 0.01 else (f"L{-tr.pan * 100:.0f}" if tr.pan < 0 else f"R{tr.pan * 100:.0f}")
+        stepper(x0 + 236, "PAN", pan, lambda: setattr(tr, "pan", round(max(-1.0, tr.pan - 0.1), 2)),
+                lambda: setattr(tr, "pan", round(min(1.0, tr.pan + 0.1), 2)))
+        for i, (flag, lb, col) in enumerate((("mute", "MUTE", RED), ("solo", "SOLO", YEL))):
+            bx = x1 - 136 + i * 64
+            on = getattr(tr, flag)
+            self.keycap((bx, ty - 12, bx + 58, ty + 12), "lit" if on else "up", 5, col)
+            self.lab(bx + 29, ty, lb, 5.4, (20, 20, 22) if on else (190, 195, 205), "mm", "s", 0.12)
+            self.hit((bx, ty - 14, bx + 58, ty + 14), down=lambda *_, flag=flag: setattr(tr, flag, not getattr(tr, flag)))
 
     # ------------------------------------------------------------ GRID (piano roll for the active track)
     # ------------------------------------------------------------ GRID bottom lane: OFF / VELOCITY / AUTOMATION
