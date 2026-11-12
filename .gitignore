@@ -1,4 +1,5 @@
-examples/
+examples/*
+!examples/mpc_import/
 __pycache__/
 *.pyc
 projects/
